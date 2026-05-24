@@ -1,0 +1,22 @@
+[project]
+name = "devcon2026"
+version = "0.1.0"
+description = "Reusable analysis package extracted from research notebooks."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+devcon2026 = "devcon2026.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
