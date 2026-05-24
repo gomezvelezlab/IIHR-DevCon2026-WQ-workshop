@@ -16,65 +16,75 @@ matplotlib.use("Agg")
 
 from matplotlib import pyplot as plt
 
+from devcon2026.hydro import Parameters
+from devcon2026.hydro import States
+from devcon2026.hydro import export_nitrogen_hydro_inputs
+from devcon2026.hydro import simulate
+from devcon2026.hydro.export import convert_fluxes_to_nitrogen_units
+from devcon2026.hydro.export import convert_states_to_nitrogen_units
 from devcon2026.nitrogen import NitrogenModel_SingleCV
 from devcon2026.nitrogen import default_soil_parameters
 
 OUTPUT_DIR = Path("demo_outputs")
+HYDRO_OUTPUT_DIR = OUTPUT_DIR / "example_hydro_model"
 
 
-def synthetic_hydrologic_outputs(hours: int = 24 * 120) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Create hydrologic states, fluxes, and meteorological forcings."""
+def synthetic_hydro_forcing(hours: int = 24 * 120) -> pd.DataFrame:
+    """Create model-ready forcing data for the hydrologic model."""
     time = pd.date_range("2010-01-01", periods=hours, freq="h")
     hour = np.arange(hours, dtype=float)
     seasonal = np.sin(2.0 * np.pi * hour / (24.0 * 365.0))
     storm = np.maximum(0.0, np.sin(2.0 * np.pi * hour / (24.0 * 9.0))) ** 4
 
-    states = pd.DataFrame(
-        {
-            "time": time,
-            "s_s": 90.0 + 20.0 * seasonal + 12.0 * storm,
-            "s_gwa": 300.0 + 8.0 * seasonal,
-            "s_gwp": 900.0 + 3.0 * seasonal,
-        }
-    )
-    fluxes = pd.DataFrame(
-        {
-            "time": time,
-            "p_r": 5.0 * storm,
-            "f_sm": np.where((time.month <= 3) | (time.month == 12), 0.15 * storm, 0.0),
-            "e_a": 1.4 + 0.8 * np.maximum(0.0, seasonal),
-            "q_sc": 0.7 * storm,
-            "q_sgwa": 0.25 + 0.03 * states["s_s"],
-            "q_gwatd": 0.08 + 0.005 * states["s_gwa"],
-            "q_gwac": 0.05 + 0.002 * states["s_gwa"],
-            "q_gwap": 0.02 + 0.001 * states["s_gwa"],
-            "q_gwpc": 0.01 + 0.0005 * states["s_gwp"],
-        }
-    )
-    forcings = pd.DataFrame(
+    return pd.DataFrame(
         {
             "time": time,
             "TMP_2maboveground": 273.15 + 9.0 + 14.0 * seasonal,
+            "temperature_2m_C": 9.0 + 14.0 * seasonal,
+            "precipitation_mm": 5.0 * storm,
+            "ref_et_mm_hr": 0.05 + 0.03 * np.maximum(0.0, seasonal),
         }
     )
-    return states, fluxes, forcings
 
 
-def soil_control_volume_forcing(
-    states: pd.DataFrame, fluxes: pd.DataFrame, forcings: pd.DataFrame
-) -> pd.DataFrame:
+def ensure_hydro_outputs(output_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Load hydro CSVs if present; otherwise run hydro and export them."""
+    required = [
+        output_dir / "states1.csv",
+        output_dir / "fluxes1.csv",
+        output_dir / "south_fork_aorc_forcing.csv",
+    ]
+    if not all(path.exists() for path in required):
+        forcing = synthetic_hydro_forcing()
+        result = simulate(
+            forcing_df=forcing,
+            params=Parameters(),
+            initial_states=States(s_sn=0.01, s_s=0.03, s_gwa=0.2, s_gwp=0.5),
+            progress=False,
+        )
+        export_nitrogen_hydro_inputs(result, forcing, output_dir)
+
+    states = pd.read_csv(output_dir / "states1.csv", parse_dates=["time"])
+    fluxes = pd.read_csv(output_dir / "fluxes1.csv", parse_dates=["time"])
+    forcing = pd.read_csv(output_dir / "south_fork_aorc_forcing.csv", parse_dates=["time"])
+    return states, fluxes, forcing
+
+
+def soil_control_volume_forcing(states: pd.DataFrame, fluxes: pd.DataFrame, forcings: pd.DataFrame) -> pd.DataFrame:
     """Build the forcing dataframe expected by `NitrogenModel_SingleCV`."""
+    states_mm = convert_states_to_nitrogen_units(states)
+    fluxes_mm_day = convert_fluxes_to_nitrogen_units(fluxes)
     time = pd.DatetimeIndex(fluxes["time"])
     df = pd.DataFrame(
         {
             "time": time,
             "doy": time.dayofyear + time.hour / 24.0,
             "temp": forcings["TMP_2maboveground"].to_numpy() - 273.15,
-            "s": states["s_s"].to_numpy(),
-            "q_in_1": fluxes["p_r"].to_numpy(),
-            "q_in_2": fluxes["f_sm"].to_numpy(),
-            "q_out_1": fluxes["q_sc"].to_numpy(),
-            "q_out_2": fluxes["q_sgwa"].to_numpy(),
+            "s": states_mm["s_s"].to_numpy(),
+            "q_in_1": fluxes_mm_day["p_r"].to_numpy(),
+            "q_in_2": fluxes_mm_day["f_sm"].to_numpy(),
+            "q_out_1": fluxes_mm_day["q_sc"].to_numpy(),
+            "q_out_2": fluxes_mm_day["q_sgwa"].to_numpy(),
             "c_din_in_0": 1.0,
             "c_din_in_1": 0.5,
             "c_don_in_0": 0.0,
@@ -125,17 +135,19 @@ def run_simulation(df_forcings: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFram
 def plot_hydrologic_forcings(
     states: pd.DataFrame, fluxes: pd.DataFrame, forcings: pd.DataFrame
 ) -> None:
+    states_mm = convert_states_to_nitrogen_units(states)
+    fluxes_mm_day = convert_fluxes_to_nitrogen_units(fluxes)
     fig, axs = plt.subplots(4, 1, figsize=(10, 10), sharex=True, layout="constrained")
-    axs[0].plot(states["time"], states["s_s"], linewidth=0.7)
+    axs[0].plot(states_mm["time"], states_mm["s_s"], linewidth=0.7)
     axs[0].set_ylabel("Soil storage (mm)")
-    axs[1].plot(fluxes["time"], fluxes["p_r"], linewidth=0.7, label="Rainfall")
-    axs[1].plot(fluxes["time"], fluxes["f_sm"], linewidth=0.7, label="Snowmelt")
+    axs[1].plot(fluxes_mm_day["time"], fluxes_mm_day["p_r"], linewidth=0.7, label="Rainfall")
+    axs[1].plot(fluxes_mm_day["time"], fluxes_mm_day["f_sm"], linewidth=0.7, label="Snowmelt")
     axs[1].set_ylabel("Fluxes in (mm/day)")
     axs[1].legend()
-    axs[2].plot(fluxes["time"], fluxes["q_sc"], linewidth=0.7, label="Flow to channel")
+    axs[2].plot(fluxes_mm_day["time"], fluxes_mm_day["q_sc"], linewidth=0.7, label="Flow to channel")
     axs[2].plot(
-        fluxes["time"],
-        fluxes["q_sgwa"],
+        fluxes_mm_day["time"],
+        fluxes_mm_day["q_sgwa"],
         linewidth=0.7,
         label="Flow to active groundwater",
     )
@@ -192,7 +204,7 @@ def plot_mass_fluxes(mass_fluxes: pd.DataFrame) -> None:
 
 def main() -> None:
     OUTPUT_DIR.mkdir(exist_ok=True)
-    states, fluxes, meteorology = synthetic_hydrologic_outputs()
+    states, fluxes, meteorology = ensure_hydro_outputs(HYDRO_OUTPUT_DIR)
     df_forcings = soil_control_volume_forcing(states, fluxes, meteorology)
     solution_ads, solution_no_ads, mass_fluxes = run_simulation(df_forcings)
 

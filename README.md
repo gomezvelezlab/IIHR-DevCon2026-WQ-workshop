@@ -27,8 +27,12 @@ uv run pytest
 uv run python demo.py
 ```
 
-The demo reproduces the nitrogen-model exploration plots from the original
-notebook using the package API and writes images to `demo_outputs/`.
+The demo follows the dataframe workflow from the original nitrogen notebook. It
+loads hydrologic CSV outputs when they are present in
+`demo_outputs/example_hydro_model/`; otherwise it runs the packaged hydrologic
+model, exports `states1.csv`, `fluxes1.csv`, `discharge1.csv`, and
+`south_fork_aorc_forcing.csv`, then uses those files to drive the nitrogen
+model. Plots are written to `demo_outputs/`.
 
 ## Notebook Migration Pattern
 
@@ -43,8 +47,11 @@ Keep original notebooks in `notebooks/` as references. Move reusable logic into
 Avoid hidden notebook state by passing every input explicitly and returning
 values instead of mutating globals.
 
-## Current Scope
+## Package Modules
 
-The first migrated module is `devcon2026.nitrogen`, extracted from the unpacked
-`wq-modeling-iihr` source tree. The original notebooks, demos, and data remain
-useful as references while the reusable package API is built out.
+- `devcon2026.hydro`: hydrologic model components from the `ruben` branch, plus
+  CSV export helpers for nitrogen workflows.
+- `devcon2026.nitrogen`: nitrogen soil-process model from the `chucho` branch.
+
+The original notebooks, demos, and data remain useful as references while the
+reusable package API is built out.
