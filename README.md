@@ -27,6 +27,10 @@ uv run pytest
 uv run python demo.py
 ```
 
+Use `uv run python demo.py --force-hydro` to rerun the synthetic hydrologic
+model even when exported hydro CSVs already exist. Use `--no-progress` for quiet
+batch runs.
+
 The demo follows the dataframe workflow from the original nitrogen notebook. It
 loads hydrologic CSV outputs when they are present in
 `demo_outputs/example_hydro_model/`; otherwise it runs the packaged hydrologic
