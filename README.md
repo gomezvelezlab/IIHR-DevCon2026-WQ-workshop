@@ -1,6 +1,7 @@
 # devcon2026
 
-Reusable Python package for analyses migrated from project notebooks.
+Reusable Python package for water-quality analyses migrated from project
+notebooks.
 
 ## Setup
 
@@ -20,6 +21,15 @@ uv run devcon2026
 uv run pytest
 ```
 
+## Demo
+
+```bash
+uv run python demo.py
+```
+
+The demo reproduces the nitrogen-model exploration plots from the original
+notebook using the package API and writes images to `demo_outputs/`.
+
 ## Notebook Migration Pattern
 
 Keep original notebooks in `notebooks/` as references. Move reusable logic into
@@ -32,3 +42,9 @@ Keep original notebooks in `notebooks/` as references. Move reusable logic into
 
 Avoid hidden notebook state by passing every input explicitly and returning
 values instead of mutating globals.
+
+## Current Scope
+
+The first migrated module is `devcon2026.nitrogen`, extracted from the unpacked
+`wq-modeling-iihr` source tree. The original notebooks, demos, and data remain
+useful as references while the reusable package API is built out.

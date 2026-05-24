@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "Reusable analysis package extracted from research notebooks."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+license = "GPL-3.0-only"
+dependencies = [
+    "numpy>=2.2.6",
+]
 
 [project.scripts]
 devcon2026 = "devcon2026.cli:main"
@@ -16,7 +19,12 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.mypy]
+files = ["demo.py", "src/devcon2026", "tests"]
+
 [dependency-groups]
 dev = [
+    "matplotlib>=3.10.9",
+    "mypy>=2.1.0",
     "pytest>=9.0.3",
 ]
