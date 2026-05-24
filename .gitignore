@@ -6,6 +6,7 @@ dist/
 wheels/
 *.egg-info
 demo_outputs/
+notebooks/wq-modeling-iihr/
 
 # Virtual environments
 .venv

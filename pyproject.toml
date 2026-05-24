@@ -7,6 +7,9 @@ requires-python = ">=3.10"
 license = "GPL-3.0-only"
 dependencies = [
     "numpy>=2.2.6",
+    "pandas>=2.3.3",
+    "scipy>=1.15.3",
+    "tqdm>=4.67.3",
 ]
 
 [project.scripts]
@@ -26,5 +29,6 @@ files = ["demo.py", "src/devcon2026", "tests"]
 dev = [
     "matplotlib>=3.10.9",
     "mypy>=2.1.0",
+    "pandas-stubs>=2.3.3.260113",
     "pytest>=9.0.3",
 ]

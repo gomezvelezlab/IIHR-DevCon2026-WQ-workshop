@@ -1,54 +1,102 @@
 import numpy as np
+import pandas as pd
 import pytest
 
-from devcon2026.nitrogen import (
-    D_DIN,
-    Params,
-    U_DIN,
-    concfactor,
-    derivatives,
-    exponential_moisturefactor,
-    moisturefactor,
-    tempfactor,
-)
+from devcon2026.nitrogen import NitrogenModel_SingleCV
+from devcon2026.nitrogen import default_soil_parameters
 
 
-def test_tempfactor_thresholds() -> None:
-    assert tempfactor(-1.0) == 0.0
-    assert tempfactor(0.0) == 0.0
-    assert tempfactor(20.0) == 1.0
-    assert tempfactor(5.0) == pytest.approx(0.3535533905932738)
+def test_environmental_factors() -> None:
+    model = NitrogenModel_SingleCV(default_soil_parameters())
+
+    assert model.tempfactor(-1.0) == 0.0
+    assert model.tempfactor(0.0) == 0.0
+    assert model.tempfactor(20.0) == 1.0
+    assert model.tempfactor(5.0) == pytest.approx(0.3535533905932738)
+    assert model.concfactor(1.5, 1.5) == 0.5
 
 
-def test_concfactor_half_saturation() -> None:
-    assert concfactor(1.5, 1.5) == 0.5
+def test_soil_moisture_factors() -> None:
+    params = default_soil_parameters()
+    model = NitrogenModel_SingleCV(params)
 
+    assert model.moisturefactor(params["s_wp"], params) == 0.0
+    assert model.moisturefactor(50.0, params) == pytest.approx(0.9467903748962812)
+    assert model.moisturefactor(params["s_max"], params) == params["smf_sat"]
 
-def test_moisture_factors() -> None:
-    params = Params()
-
-    assert moisturefactor(params.S_wp, params) == 0.0
-    assert moisturefactor(50.0, params) == pytest.approx(0.9111111111111111)
-    assert moisturefactor(params.S_s_max, params) == params.smf_sat
-
-    assert exponential_moisturefactor(50.0, params) == 0.0
-    assert exponential_moisturefactor(85.0, params) == pytest.approx(
+    assert model.exponential_moisturefactor(50.0, params) == 0.0
+    assert model.exponential_moisturefactor(params["s_max"] * 0.85, params) == pytest.approx(
         0.1767766952966369
     )
-    assert exponential_moisturefactor(150.0, params) == 1.0
+    assert model.exponential_moisturefactor(params["s_max"] * 1.5, params) == 1.0
 
 
 def test_denitrification_and_uptake() -> None:
-    params = Params()
+    params = default_soil_parameters()
+    model = NitrogenModel_SingleCV(params)
 
-    assert D_DIN(0.5, 100.0, 20.0, params) == pytest.approx(0.625)
-    assert U_DIN(0.5, 100.0, params) == pytest.approx(10.0)
+    assert model.d_din(50.0, params["s_max"], 20.0, params) == pytest.approx(
+        0.4613397305775973
+    )
+    assert model.u_din(50.0, 100.0, params) == pytest.approx(10.0)
 
 
-def test_derivatives_match_current_model() -> None:
-    params = Params()
-    masses = np.array([1000.0, 100.0, 10.0, 50.0])
+def test_dataframe_simulation_smoke() -> None:
+    params = default_soil_parameters()
+    model = NitrogenModel_SingleCV(params)
+    time = pd.date_range("2020-01-01", periods=4, freq="h")
+    forcings = pd.DataFrame(
+        {
+            "time": time,
+            "doy": time.dayofyear + time.hour / 24.0,
+            "temp": [10.0, 10.0, 11.0, 11.0],
+            "s": [100.0, 101.0, 99.0, 100.0],
+            "q_in_1": [1.0, 0.5, 0.0, 1.0],
+            "q_in_2": [0.0, 0.5, 1.0, 0.0],
+            "q_out_1": [0.2, 0.2, 0.3, 0.2],
+            "q_out_2": [0.1, 0.1, 0.1, 0.1],
+            "c_din_in_0": [1.0, 1.0, 1.0, 1.0],
+            "c_din_in_1": [0.5, 0.5, 0.5, 0.5],
+            "c_don_in_0": [0.0, 0.0, 0.0, 0.0],
+            "c_don_in_1": [0.0, 0.0, 0.0, 0.0],
+        }
+    )
+    initial_masses = np.array([500.0, 2500.0, 4.5e5, 1.0e4, 0.0])
 
-    result = derivatives(masses, S_s=100.0, temp=20.0, params=params)
+    result = model.simulate_nitrogen_dynamics(
+        df_forcings=forcings,
+        M0=initial_masses,
+        with_DON_ads=True,
+        progress=False,
+    )
+    fluxes = model.get_mass_fluxes_all_species(
+        M=result[["m_don", "m_din", "m_son", "m_fon"]].values,
+        df_forcings=forcings,
+    )
 
-    np.testing.assert_allclose(result, np.array([-8.8, -1.2, 8.04, -9.025]))
+    assert list(result.columns) == [
+        "time",
+        "doy",
+        "m_don",
+        "m_din",
+        "m_son",
+        "m_fon",
+        "m_don_ads",
+        "delta_m_don",
+        "s",
+        "saturation_frac",
+        "temp",
+        "q_total_in",
+        "q_total_out",
+        "c_din",
+        "c_don",
+        "m_din_total_flux_in",
+        "m_don_total_flux_in",
+        "m_din_total_flux_out",
+        "m_don_total_flux_out",
+    ]
+    assert len(result) == len(forcings)
+    assert {"r_don_flux", "q_adv_din_in_flux", "q_adv_don_out_flux"} <= set(
+        fluxes.columns
+    )
+    assert np.isfinite(result[["m_don", "m_din", "m_son", "m_fon"]].values).all()
