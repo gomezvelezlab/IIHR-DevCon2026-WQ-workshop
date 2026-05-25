@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
@@ -9,6 +10,16 @@ import pandas as pd
 from .constants import MILLIMETERS_PER_METER
 from .constants import SECONDS_PER_DAY
 from .types import SimulationResult
+
+
+@dataclass(frozen=True)
+class HydrologyArtifactNames:
+    """CSV filenames shared by hydrology exports and nitrogen imports."""
+
+    discharge: str = "discharge1.csv"
+    states: str = "states1.csv"
+    fluxes: str = "fluxes1.csv"
+    forcing: str = "south_fork_aorc_forcing.csv"
 
 
 def _with_time_column(df: pd.DataFrame) -> pd.DataFrame:
@@ -21,6 +32,7 @@ def export_nitrogen_hydrology_inputs(
     result: SimulationResult,
     forcing_df: pd.DataFrame,
     output_dir: str | Path,
+    artifact_names: HydrologyArtifactNames | None = None,
     prefix: str = "1",
 ) -> dict[str, Path]:
     """Write hydrologic outputs in the CSV shape expected by nitrogen demos.
@@ -31,11 +43,16 @@ def export_nitrogen_hydrology_inputs(
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
+    names = artifact_names or HydrologyArtifactNames(
+        discharge=f"discharge{prefix}.csv",
+        states=f"states{prefix}.csv",
+        fluxes=f"fluxes{prefix}.csv",
+    )
 
-    discharge_path = output_path / f"discharge{prefix}.csv"
-    states_path = output_path / f"states{prefix}.csv"
-    fluxes_path = output_path / f"fluxes{prefix}.csv"
-    forcing_path = output_path / "south_fork_aorc_forcing.csv"
+    discharge_path = output_path / names.discharge
+    states_path = output_path / names.states
+    fluxes_path = output_path / names.fluxes
+    forcing_path = output_path / names.forcing
 
     discharge_output = result.discharge_cms.rename("discharge_cms").reset_index()
     discharge_output = discharge_output.rename(columns={discharge_output.columns[0]: "time"})

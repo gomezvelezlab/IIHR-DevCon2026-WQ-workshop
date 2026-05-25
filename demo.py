@@ -17,12 +17,23 @@ matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 
 from devcon2026.hydrology import Hydrology
+from devcon2026.hydrology import HydrologyArtifactNames
 from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
 from devcon2026.hydrology.export import convert_states_to_nitrogen_units
 from devcon2026.nitrogen import Nitrogen
 
 OUTPUT_DIR = Path("demo_outputs")
 HYDROLOGY_OUTPUT_DIR = OUTPUT_DIR / "example_hydrology_model"
+DISCHARGE_CSV = "discharge1.csv"
+STATES_CSV = "states1.csv"
+FLUXES_CSV = "fluxes1.csv"
+FORCING_CSV = "south_fork_aorc_forcing.csv"
+HYDROLOGY_ARTIFACTS = HydrologyArtifactNames(
+    discharge=DISCHARGE_CSV,
+    states=STATES_CSV,
+    fluxes=FLUXES_CSV,
+    forcing=FORCING_CSV,
+)
 
 
 def plot_hydrologic_forcings(
@@ -116,13 +127,19 @@ def main() -> None:
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     hydrology = Hydrology()
-    hydrology.config(output_dir=HYDROLOGY_OUTPUT_DIR)
+    hydrology.config(
+        output_dir=HYDROLOGY_OUTPUT_DIR,
+        artifact_names=HYDROLOGY_ARTIFACTS,
+    )
     hydrology.solve(force=args.force_hydrology, progress=progress)
     hydrology.export()
 
     nitrogen = Nitrogen()
     nitrogen.config(output_dir=OUTPUT_DIR)
-    nitrogen.load_hydrology(hydrology.output_dir)
+    nitrogen.load_hydrology(
+        hydrology.output_dir,
+        artifact_names=HYDROLOGY_ARTIFACTS,
+    )
     nitrogen.solve(progress=progress)
     nitrogen.export()
 

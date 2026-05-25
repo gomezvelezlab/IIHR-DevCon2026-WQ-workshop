@@ -41,14 +41,28 @@ model. Plots are written to `demo_outputs/`.
 The executable workflow is intentionally thin:
 
 ```python
+DISCHARGE_CSV = "discharge1.csv"
+STATES_CSV = "states1.csv"
+FLUXES_CSV = "fluxes1.csv"
+FORCING_CSV = "south_fork_aorc_forcing.csv"
+artifacts = HydrologyArtifactNames(
+    discharge=DISCHARGE_CSV,
+    states=STATES_CSV,
+    fluxes=FLUXES_CSV,
+    forcing=FORCING_CSV,
+)
+
 hydrology = Hydrology()
-hydrology.config(output_dir="demo_outputs/example_hydrology_model")
+hydrology.config(
+    output_dir="demo_outputs/example_hydrology_model",
+    artifact_names=artifacts,
+)
 hydrology.solve()
 hydrology.export()
 
 nitrogen = Nitrogen()
 nitrogen.config(output_dir="demo_outputs")
-nitrogen.load_hydrology(hydrology.output_dir)
+nitrogen.load_hydrology(hydrology.output_dir, artifact_names=artifacts)
 nitrogen.solve()
 nitrogen.export()
 ```

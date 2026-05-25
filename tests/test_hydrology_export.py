@@ -96,6 +96,39 @@ def test_export_nitrogen_hydrology_inputs(tmp_path) -> None:
     ]
 
 
+def test_export_nitrogen_hydrology_inputs_keeps_prefix_option(tmp_path) -> None:
+    time = pd.date_range("2020-01-01", periods=1, freq="h", tz="UTC")
+    result = SimulationResult(
+        discharge_cms=pd.Series([1.0], index=time, name="discharge_cms"),
+        states=pd.DataFrame(
+            {"s_sn": [0.01], "s_s": [0.03], "s_gwa": [0.5], "s_gwp": [1.0]},
+            index=time,
+        ),
+        fluxes=pd.DataFrame(
+            {
+                "p_sn": [0.0],
+                "f_sm": [0.0],
+                "p_r": [1e-8],
+                "e_a": [1e-9],
+                "q_sc": [1e-10],
+                "q_sgwa": [3e-10],
+                "q_gwatd": [5e-10],
+                "q_gwac": [7e-10],
+                "q_gwap": [9e-10],
+                "q_gwpc": [2e-9],
+            },
+            index=time,
+        ),
+    )
+    forcing = pd.DataFrame({"time": time, "TMP_2maboveground": [273.15]})
+
+    paths = export_nitrogen_hydrology_inputs(result, forcing, tmp_path, prefix="123")
+
+    assert paths["discharge"].name == "discharge123.csv"
+    assert paths["states"].name == "states123.csv"
+    assert paths["fluxes"].name == "fluxes123.csv"
+
+
 def test_nitrogen_unit_conversions() -> None:
     states = pd.DataFrame({"s_sn": [0.001], "s_s": [0.002], "s_gwa": [0.003], "s_gwp": [0.004]})
     fluxes = pd.DataFrame(

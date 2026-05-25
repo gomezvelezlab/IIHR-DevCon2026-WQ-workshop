@@ -1,6 +1,6 @@
 """Hydrologic model package."""
 
-from .export import export_nitrogen_hydrology_inputs
+from .export import HydrologyArtifactNames, export_nitrogen_hydrology_inputs
 from .io import load_forcing_data, load_observed_discharge, load_parameters
 from .metrics import align_series, nse, rmse
 from .model import Hydrology, synthetic_hydrology_forcing
@@ -11,6 +11,7 @@ from .types import Forcings, Parameters, SimulationResult, States
 __all__ = [
     "Forcings",
     "Hydrology",
+    "HydrologyArtifactNames",
     "Parameters",
     "SimulationResult",
     "States",

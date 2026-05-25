@@ -1064,12 +1064,15 @@ class Nitrogen:
             self.initial_masses = initial_masses
         return self
 
-    def load_hydrology(self, output_dir: str | Path) -> "Nitrogen":
+    def load_hydrology(self, output_dir: str | Path, artifact_names: Any | None = None) -> "Nitrogen":
         """Load exported hydrology artifacts and build nitrogen forcings."""
+        from devcon2026.hydrology import HydrologyArtifactNames
+
         output_path = Path(output_dir)
-        states = pd.read_csv(output_path / "states1.csv", parse_dates=["time"])
-        fluxes = pd.read_csv(output_path / "fluxes1.csv", parse_dates=["time"])
-        forcing = pd.read_csv(output_path / "south_fork_aorc_forcing.csv", parse_dates=["time"])
+        names = artifact_names or HydrologyArtifactNames()
+        states = pd.read_csv(output_path / names.states, parse_dates=["time"])
+        fluxes = pd.read_csv(output_path / names.fluxes, parse_dates=["time"])
+        forcing = pd.read_csv(output_path / names.forcing, parse_dates=["time"])
         self.df_forcings = self.from_hydrology_outputs(states, fluxes, forcing)
         return self
 
