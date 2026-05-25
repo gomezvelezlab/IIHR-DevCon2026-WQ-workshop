@@ -17,20 +17,20 @@ matplotlib.use("Agg")
 
 from matplotlib import pyplot as plt
 
-from devcon2026.hydro import Parameters
-from devcon2026.hydro import States
-from devcon2026.hydro import export_nitrogen_hydro_inputs
-from devcon2026.hydro import simulate
-from devcon2026.hydro.export import convert_fluxes_to_nitrogen_units
-from devcon2026.hydro.export import convert_states_to_nitrogen_units
+from devcon2026.hydrology import Parameters
+from devcon2026.hydrology import States
+from devcon2026.hydrology import export_nitrogen_hydrology_inputs
+from devcon2026.hydrology import simulate
+from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
+from devcon2026.hydrology.export import convert_states_to_nitrogen_units
 from devcon2026.nitrogen import NitrogenModel_SingleCV
 from devcon2026.nitrogen import default_soil_parameters
 
 OUTPUT_DIR = Path("demo_outputs")
-HYDRO_OUTPUT_DIR = OUTPUT_DIR / "example_hydro_model"
+HYDROLOGY_OUTPUT_DIR = OUTPUT_DIR / "example_hydrology_model"
 
 
-def synthetic_hydro_forcing(hours: int = 24 * 120) -> pd.DataFrame:
+def synthetic_hydrology_forcing(hours: int = 24 * 120) -> pd.DataFrame:
     """Create model-ready forcing data for the hydrologic model."""
     time = pd.date_range("2010-01-01", periods=hours, freq="h")
     hour = np.arange(hours, dtype=float)
@@ -48,10 +48,10 @@ def synthetic_hydro_forcing(hours: int = 24 * 120) -> pd.DataFrame:
     )
 
 
-def ensure_hydro_outputs(
+def ensure_hydrology_outputs(
     output_dir: Path, *, force: bool = False, progress: bool = True
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, str]:
-    """Load hydro CSVs if present; otherwise run hydro and export them."""
+    """Load hydrology CSVs if present; otherwise run hydrology and export them."""
     required = [
         output_dir / "states1.csv",
         output_dir / "fluxes1.csv",
@@ -59,15 +59,15 @@ def ensure_hydro_outputs(
     ]
     generated = force or not all(path.exists() for path in required)
     if generated:
-        forcing = synthetic_hydro_forcing()
+        forcing = synthetic_hydrology_forcing()
         result = simulate(
             forcing_df=forcing,
             params=Parameters(),
             initial_states=States(s_sn=0.01, s_s=0.03, s_gwa=0.2, s_gwp=0.5),
             progress=progress,
-            progress_desc="hydro",
+            progress_desc="hydrology",
         )
-        export_nitrogen_hydro_inputs(result, forcing, output_dir)
+        export_nitrogen_hydrology_inputs(result, forcing, output_dir)
 
     states = pd.read_csv(output_dir / "states1.csv", parse_dates=["time"])
     fluxes = pd.read_csv(output_dir / "fluxes1.csv", parse_dates=["time"])
@@ -215,7 +215,7 @@ def plot_mass_fluxes(mass_fluxes: pd.DataFrame) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--force-hydro",
+        "--force-hydrology",
         action="store_true",
         help="rerun the synthetic hydrologic model even when exported CSVs exist",
     )
@@ -231,9 +231,9 @@ def main() -> None:
     args = parse_args()
     progress = not args.no_progress
     OUTPUT_DIR.mkdir(exist_ok=True)
-    states, fluxes, meteorology, hydro_source = ensure_hydro_outputs(
-        HYDRO_OUTPUT_DIR,
-        force=args.force_hydro,
+    states, fluxes, meteorology, hydrology_source = ensure_hydrology_outputs(
+        HYDROLOGY_OUTPUT_DIR,
+        force=args.force_hydrology,
         progress=progress,
     )
     df_forcings = soil_control_volume_forcing(states, fluxes, meteorology)
@@ -247,7 +247,7 @@ def main() -> None:
     plot_mass_fluxes(mass_fluxes)
 
     print("Nitrogen simulation demo")
-    print(f"Hydro outputs: {hydro_source}")
+    print(f"Hydrology outputs: {hydrology_source}")
     print(f"Forcing rows: {len(df_forcings)}")
     print(f"Final DIN concentration: {solution_ads['c_din'].iloc[-1]:.3f} mg N/L")
     print(f"Final DON concentration: {solution_ads['c_don'].iloc[-1]:.3f} mg N/L")

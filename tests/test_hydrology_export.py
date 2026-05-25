@@ -1,14 +1,14 @@
 import numpy as np
 import pandas as pd
 
-from devcon2026.hydro import Forcings
-from devcon2026.hydro import Parameters
-from devcon2026.hydro import SimulationResult
-from devcon2026.hydro import States
-from devcon2026.hydro.export import convert_fluxes_to_nitrogen_units
-from devcon2026.hydro.export import convert_states_to_nitrogen_units
-from devcon2026.hydro.export import export_nitrogen_hydro_inputs
-from devcon2026.hydro.physics import compute_fluxes
+from devcon2026.hydrology import Forcings
+from devcon2026.hydrology import Parameters
+from devcon2026.hydrology import SimulationResult
+from devcon2026.hydrology import States
+from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
+from devcon2026.hydrology.export import convert_states_to_nitrogen_units
+from devcon2026.hydrology.export import export_nitrogen_hydrology_inputs
+from devcon2026.hydrology.physics import compute_fluxes
 
 
 def test_compute_fluxes_has_nitrogen_demo_columns() -> None:
@@ -32,7 +32,7 @@ def test_compute_fluxes_has_nitrogen_demo_columns() -> None:
     }
 
 
-def test_export_nitrogen_hydro_inputs(tmp_path) -> None:
+def test_export_nitrogen_hydrology_inputs(tmp_path) -> None:
     time = pd.date_range("2020-01-01", periods=2, freq="h", tz="UTC")
     states = pd.DataFrame(
         {
@@ -71,7 +71,7 @@ def test_export_nitrogen_hydro_inputs(tmp_path) -> None:
         }
     )
 
-    paths = export_nitrogen_hydro_inputs(result, forcing, tmp_path)
+    paths = export_nitrogen_hydrology_inputs(result, forcing, tmp_path)
 
     assert set(paths) == {"discharge", "states", "fluxes", "forcing"}
     assert pd.read_csv(paths["states"]).columns.tolist() == [

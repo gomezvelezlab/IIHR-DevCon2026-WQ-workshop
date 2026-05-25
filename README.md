@@ -27,13 +27,13 @@ uv run pytest
 uv run python demo.py
 ```
 
-Use `uv run python demo.py --force-hydro` to rerun the synthetic hydrologic
-model even when exported hydro CSVs already exist. Use `--no-progress` for quiet
-batch runs.
+Use `uv run python demo.py --force-hydrology` to rerun the synthetic hydrologic
+model even when exported hydrology CSVs already exist. Use `--no-progress` for
+quiet batch runs.
 
 The demo follows the dataframe workflow from the original nitrogen notebook. It
 loads hydrologic CSV outputs when they are present in
-`demo_outputs/example_hydro_model/`; otherwise it runs the packaged hydrologic
+`demo_outputs/example_hydrology_model/`; otherwise it runs the packaged hydrologic
 model, exports `states1.csv`, `fluxes1.csv`, `discharge1.csv`, and
 `south_fork_aorc_forcing.csv`, then uses those files to drive the nitrogen
 model. Plots are written to `demo_outputs/`.
@@ -53,7 +53,7 @@ values instead of mutating globals.
 
 ## Package Modules
 
-- `devcon2026.hydro`: hydrologic model components from the `ruben` branch, plus
+- `devcon2026.hydrology`: hydrologic model components from the `ruben` branch, plus
   CSV export helpers for nitrogen workflows.
 - `devcon2026.nitrogen`: nitrogen soil-process model from the `chucho` branch.
 

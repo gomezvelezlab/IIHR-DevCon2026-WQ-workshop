@@ -17,7 +17,7 @@ def _with_time_column(df: pd.DataFrame) -> pd.DataFrame:
     return output.reset_index(drop=True)
 
 
-def export_nitrogen_hydro_inputs(
+def export_nitrogen_hydrology_inputs(
     result: SimulationResult,
     forcing_df: pd.DataFrame,
     output_dir: str | Path,

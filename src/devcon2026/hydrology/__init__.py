@@ -1,6 +1,6 @@
 """Hydrologic model package."""
 
-from .export import export_nitrogen_hydro_inputs
+from .export import export_nitrogen_hydrology_inputs
 from .io import load_forcing_data, load_observed_discharge, load_parameters
 from .metrics import align_series, nse, rmse
 from .periods import PeriodRun, PeriodWindow, run_period
@@ -13,7 +13,7 @@ __all__ = [
     "SimulationResult",
     "States",
     "align_series",
-    "export_nitrogen_hydro_inputs",
+    "export_nitrogen_hydrology_inputs",
     "load_forcing_data",
     "load_observed_discharge",
     "load_parameters",
