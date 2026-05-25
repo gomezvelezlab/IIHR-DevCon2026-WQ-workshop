@@ -2,6 +2,8 @@
 
 from importlib.metadata import PackageNotFoundError, version
 
+from devcon2026.hydrology import Hydrology
+from devcon2026.nitrogen import Nitrogen
 from devcon2026.nitrogen import NitrogenModel_SingleCV
 from devcon2026.nitrogen import default_soil_parameters
 
@@ -10,4 +12,10 @@ try:
 except PackageNotFoundError:  # pragma: no cover
     __version__ = "0.0.0"
 
-__all__ = ["NitrogenModel_SingleCV", "__version__", "default_soil_parameters"]
+__all__ = [
+    "Hydrology",
+    "Nitrogen",
+    "NitrogenModel_SingleCV",
+    "__version__",
+    "default_soil_parameters",
+]

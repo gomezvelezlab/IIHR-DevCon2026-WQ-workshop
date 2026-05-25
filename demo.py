@@ -10,136 +10,19 @@ import argparse
 from pathlib import Path
 
 import matplotlib
-import numpy as np
 import pandas as pd
 
 matplotlib.use("Agg")
 
 from matplotlib import pyplot as plt
 
-from devcon2026.hydrology import Parameters
-from devcon2026.hydrology import States
-from devcon2026.hydrology import export_nitrogen_hydrology_inputs
-from devcon2026.hydrology import simulate
+from devcon2026.hydrology import Hydrology
 from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
 from devcon2026.hydrology.export import convert_states_to_nitrogen_units
-from devcon2026.nitrogen import NitrogenModel_SingleCV
-from devcon2026.nitrogen import default_soil_parameters
+from devcon2026.nitrogen import Nitrogen
 
 OUTPUT_DIR = Path("demo_outputs")
 HYDROLOGY_OUTPUT_DIR = OUTPUT_DIR / "example_hydrology_model"
-
-
-def synthetic_hydrology_forcing(hours: int = 24 * 120) -> pd.DataFrame:
-    """Create model-ready forcing data for the hydrologic model."""
-    time = pd.date_range("2010-01-01", periods=hours, freq="h")
-    hour = np.arange(hours, dtype=float)
-    seasonal = np.sin(2.0 * np.pi * hour / (24.0 * 365.0))
-    storm = np.maximum(0.0, np.sin(2.0 * np.pi * hour / (24.0 * 9.0))) ** 4
-
-    return pd.DataFrame(
-        {
-            "time": time,
-            "TMP_2maboveground": 273.15 + 9.0 + 14.0 * seasonal,
-            "temperature_2m_C": 9.0 + 14.0 * seasonal,
-            "precipitation_mm": 5.0 * storm,
-            "ref_et_mm_hr": 0.05 + 0.03 * np.maximum(0.0, seasonal),
-        }
-    )
-
-
-def ensure_hydrology_outputs(
-    output_dir: Path, *, force: bool = False, progress: bool = True
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, str]:
-    """Load hydrology CSVs if present; otherwise run hydrology and export them."""
-    required = [
-        output_dir / "states1.csv",
-        output_dir / "fluxes1.csv",
-        output_dir / "south_fork_aorc_forcing.csv",
-    ]
-    generated = force or not all(path.exists() for path in required)
-    if generated:
-        forcing = synthetic_hydrology_forcing()
-        result = simulate(
-            forcing_df=forcing,
-            params=Parameters(),
-            initial_states=States(s_sn=0.01, s_s=0.03, s_gwa=0.2, s_gwp=0.5),
-            progress=progress,
-            progress_desc="hydrology",
-        )
-        export_nitrogen_hydrology_inputs(result, forcing, output_dir)
-
-    states = pd.read_csv(output_dir / "states1.csv", parse_dates=["time"])
-    fluxes = pd.read_csv(output_dir / "fluxes1.csv", parse_dates=["time"])
-    forcing = pd.read_csv(output_dir / "south_fork_aorc_forcing.csv", parse_dates=["time"])
-    source = "generated from synthetic forcing" if generated else "loaded from existing CSVs"
-    return states, fluxes, forcing, source
-
-
-def soil_control_volume_forcing(states: pd.DataFrame, fluxes: pd.DataFrame, forcings: pd.DataFrame) -> pd.DataFrame:
-    """Build the forcing dataframe expected by `NitrogenModel_SingleCV`."""
-    states_mm = convert_states_to_nitrogen_units(states)
-    fluxes_mm_day = convert_fluxes_to_nitrogen_units(fluxes)
-    time = pd.DatetimeIndex(fluxes["time"])
-    df = pd.DataFrame(
-        {
-            "time": time,
-            "doy": time.dayofyear + time.hour / 24.0,
-            "temp": forcings["TMP_2maboveground"].to_numpy() - 273.15,
-            "s": states_mm["s_s"].to_numpy(),
-            "q_in_1": fluxes_mm_day["p_r"].to_numpy(),
-            "q_in_2": fluxes_mm_day["f_sm"].to_numpy(),
-            "q_out_1": fluxes_mm_day["q_sc"].to_numpy(),
-            "q_out_2": fluxes_mm_day["q_sgwa"].to_numpy(),
-            "c_din_in_0": 1.0,
-            "c_din_in_1": 0.5,
-            "c_don_in_0": 0.0,
-            "c_don_in_1": 0.0,
-        }
-    )
-    return df
-
-
-def initial_masses(forcings: pd.DataFrame) -> np.ndarray:
-    """Initial [DON, DIN, SON, FON, DON adsorbed] masses in kg N/km2."""
-    mean_storage = float(forcings["s"].mean())
-    return np.array(
-        [
-            5.0 * mean_storage,
-            25.0 * mean_storage,
-            4.5e5,
-            1.0e4,
-            0.0,
-        ],
-        dtype=float,
-    )
-
-
-def run_simulation(
-    df_forcings: pd.DataFrame, *, progress: bool = True
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    model = NitrogenModel_SingleCV(default_soil_parameters())
-    masses0 = initial_masses(df_forcings)
-    solution_ads = model.simulate_nitrogen_dynamics(
-        df_forcings=df_forcings,
-        M0=masses0,
-        with_DON_ads=True,
-        progress=progress,
-        progress_desc="nitrogen with DON adsorption",
-    )
-    solution_no_ads = model.simulate_nitrogen_dynamics(
-        df_forcings=df_forcings,
-        M0=masses0,
-        with_DON_ads=False,
-        progress=progress,
-        progress_desc="nitrogen without DON adsorption",
-    )
-    mass_fluxes = model.get_mass_fluxes_all_species(
-        M=solution_ads[["m_don", "m_din", "m_son", "m_fon"]].to_numpy(),
-        df_forcings=df_forcings,
-    )
-    mass_fluxes.insert(0, "time", df_forcings["time"].to_numpy())
-    return solution_ads, solution_no_ads, mass_fluxes
 
 
 def plot_hydrologic_forcings(
@@ -231,26 +114,36 @@ def main() -> None:
     args = parse_args()
     progress = not args.no_progress
     OUTPUT_DIR.mkdir(exist_ok=True)
-    states, fluxes, meteorology, hydrology_source = ensure_hydrology_outputs(
-        HYDROLOGY_OUTPUT_DIR,
-        force=args.force_hydrology,
-        progress=progress,
-    )
-    df_forcings = soil_control_volume_forcing(states, fluxes, meteorology)
-    solution_ads, solution_no_ads, mass_fluxes = run_simulation(
-        df_forcings,
-        progress=progress,
-    )
+
+    hydrology = Hydrology()
+    hydrology.config(output_dir=HYDROLOGY_OUTPUT_DIR)
+    hydrology.solve(force=args.force_hydrology, progress=progress)
+    hydrology.export()
+
+    nitrogen = Nitrogen()
+    nitrogen.config(output_dir=OUTPUT_DIR)
+    nitrogen.load_hydrology(hydrology.output_dir)
+    nitrogen.solve(progress=progress)
+    nitrogen.export()
+
+    states, fluxes, meteorology = hydrology.load_outputs()
+    if (
+        nitrogen.df_forcings is None
+        or nitrogen.solution_ads is None
+        or nitrogen.solution_no_ads is None
+        or nitrogen.mass_fluxes is None
+    ):
+        raise RuntimeError("Nitrogen.solve() did not produce outputs.")
 
     plot_hydrologic_forcings(states, fluxes, meteorology)
-    plot_nitrogen_solution(solution_ads, solution_no_ads)
-    plot_mass_fluxes(mass_fluxes)
+    plot_nitrogen_solution(nitrogen.solution_ads, nitrogen.solution_no_ads)
+    plot_mass_fluxes(nitrogen.mass_fluxes)
 
     print("Nitrogen simulation demo")
-    print(f"Hydrology outputs: {hydrology_source}")
-    print(f"Forcing rows: {len(df_forcings)}")
-    print(f"Final DIN concentration: {solution_ads['c_din'].iloc[-1]:.3f} mg N/L")
-    print(f"Final DON concentration: {solution_ads['c_don'].iloc[-1]:.3f} mg N/L")
+    print(f"Hydrology outputs: {hydrology.source}")
+    print(f"Forcing rows: {len(nitrogen.df_forcings)}")
+    print(f"Final DIN concentration: {nitrogen.solution_ads['c_din'].iloc[-1]:.3f} mg N/L")
+    print(f"Final DON concentration: {nitrogen.solution_ads['c_don'].iloc[-1]:.3f} mg N/L")
     print(f"Saved plots to {OUTPUT_DIR}")
 
 

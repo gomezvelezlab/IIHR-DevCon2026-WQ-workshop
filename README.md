@@ -38,6 +38,21 @@ model, exports `states1.csv`, `fluxes1.csv`, `discharge1.csv`, and
 `south_fork_aorc_forcing.csv`, then uses those files to drive the nitrogen
 model. Plots are written to `demo_outputs/`.
 
+The executable workflow is intentionally thin:
+
+```python
+hydrology = Hydrology()
+hydrology.config(output_dir="demo_outputs/example_hydrology_model")
+hydrology.solve()
+hydrology.export()
+
+nitrogen = Nitrogen()
+nitrogen.config(output_dir="demo_outputs")
+nitrogen.load_hydrology(hydrology.output_dir)
+nitrogen.solve()
+nitrogen.export()
+```
+
 ## Notebook Migration Pattern
 
 Keep original notebooks in `notebooks/` as references. Move reusable logic into
