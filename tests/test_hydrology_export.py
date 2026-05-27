@@ -1,3 +1,5 @@
+from dataclasses import fields
+
 import numpy as np
 import pandas as pd
 
@@ -49,6 +51,12 @@ def test_prefixed_hydrology_types_are_public_api() -> None:
         q_gwap=0.0,
         q_gwpc=0.0,
     ).compute_derivatives().__class__ is HydrologyDerivatives
+
+
+def test_hydrology_parameters_expose_units_and_descriptions() -> None:
+    for field in fields(HydrologyParameters):
+        assert field.metadata["unit"]
+        assert field.metadata["description"]
 
 
 def test_export_nitrogen_hydrology_inputs(tmp_path) -> None:

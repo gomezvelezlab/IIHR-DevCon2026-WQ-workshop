@@ -1,3 +1,5 @@
+from dataclasses import fields
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -118,3 +120,13 @@ def test_parameter_and_state_dataclasses_drive_model() -> None:
     assert model.params["v_denit"] == 0.01
     assert states.to_array().tolist() == [500.0, 2500.0, 4.5e5, 1.0e4, 0.0]
     assert NitrogenStates.from_array(states.to_array()) == states
+
+
+def test_nitrogen_dataclasses_expose_units_and_descriptions() -> None:
+    for field in fields(NitrogenParameters):
+        assert field.metadata["unit"]
+        assert field.metadata["description"]
+
+    for field in fields(NitrogenStates):
+        assert field.metadata["unit"] == "kg N/km2"
+        assert field.metadata["description"]

@@ -92,36 +92,104 @@ class HydrologyFluxes:
 class HydrologyParameters:
     """Model parameter set grouped by process family."""
 
-    t_0: float = 0.0
-    m_sn: float = 0.002
-    k_sn: float = 1.157e-7
+    t_0: float = field(
+        default=0.0,
+        metadata={"unit": "°C", "description": "snow-rain temperature threshold"},
+    )
+    m_sn: float = field(
+        default=0.002,
+        metadata={"unit": "m", "description": "snowmelt storage scale"},
+    )
+    k_sn: float = field(
+        default=1.157e-7,
+        metadata={"unit": "m/s/°C", "description": "degree-day snowmelt coefficient"},
+    )
 
-    c_e: float = 0.8
-    s_max: float = 0.05
-    m_s: float = 1e-5
-    beta_s: float = 2.0
-    k_sgw: float = 1e-7
+    c_e: float = field(
+        default=0.8,
+        metadata={"unit": "1", "description": "actual ET correction coefficient"},
+    )
+    s_max: float = field(
+        default=0.05,
+        metadata={"unit": "m", "description": "maximum soil storage"},
+    )
+    m_s: float = field(
+        default=1e-5,
+        metadata={"unit": "1", "description": "soil ET shape parameter"},
+    )
+    beta_s: float = field(
+        default=2.0,
+        metadata={"unit": "1", "description": "soil wetness exponent"},
+    )
+    k_sgw: float = field(
+        default=1e-7,
+        metadata={"unit": "m/s", "description": "vertical groundwater recharge flux scale"},
+    )
 
-    k_gwpc: float = 1e-7
-    k_gwap: float = 1e-6
-    k_gwac: float = 1e-6
-    beta_gwac: float = 2.0
-    s_gwa_max: float = 1.0
-    s_ref_td: float = 0.5
-    k_td: float = 1e-5
+    k_gwpc: float = field(
+        default=1e-7,
+        metadata={"unit": "1/s", "description": "passive groundwater recession coefficient"},
+    )
+    k_gwap: float = field(
+        default=1e-6,
+        metadata={"unit": "1/s", "description": "active-to-passive groundwater transfer coefficient"},
+    )
+    k_gwac: float = field(
+        default=1e-6,
+        metadata={"unit": "m/s", "description": "active groundwater channel flux scale"},
+    )
+    beta_gwac: float = field(
+        default=2.0,
+        metadata={"unit": "1", "description": "active groundwater channel exponent"},
+    )
+    s_gwa_max: float = field(
+        default=1.0,
+        metadata={"unit": "m", "description": "maximum active groundwater storage"},
+    )
+    s_ref_td: float = field(
+        default=0.5,
+        metadata={"unit": "1", "description": "relative tile drainage activation threshold"},
+    )
+    k_td: float = field(
+        default=1e-5,
+        metadata={"unit": "1/s", "description": "tile drainage coefficient"},
+    )
 
-    gamma_x: float = -0.34
-    gamma_i: float = 0.32
-    gamma_p: float = 336.0
+    gamma_x: float = field(
+        default=-0.34,
+        metadata={"unit": "1", "description": "seasonal infiltration partition offset"},
+    )
+    gamma_i: float = field(
+        default=0.32,
+        metadata={"unit": "1", "description": "seasonal infiltration partition amplitude"},
+    )
+    gamma_p: float = field(
+        default=336.0,
+        metadata={"unit": "day", "description": "seasonal infiltration partition phase"},
+    )
 
-    # PET / radiation
-    pet_albedo: float = 0.23
-    pet_emissivity: float = 0.98
+    pet_albedo: float = field(
+        default=0.23,
+        metadata={"unit": "1", "description": "surface albedo for reference ET"},
+    )
+    pet_emissivity: float = field(
+        default=0.98,
+        metadata={"unit": "1", "description": "surface emissivity for reference ET"},
+    )
 
-    n_gu: float = 2.0
-    a_gu_seconds: float = 2 * SECONDS_PER_HOUR
+    n_gu: float = field(
+        default=2.0,
+        metadata={"unit": "1", "description": "gamma unit hydrograph shape parameter"},
+    )
+    a_gu_seconds: float = field(
+        default=2 * SECONDS_PER_HOUR,
+        metadata={"unit": "s", "description": "gamma unit hydrograph scale parameter"},
+    )
 
-    area_km2: float = 100.0
+    area_km2: float = field(
+        default=100.0,
+        metadata={"unit": "km2", "description": "drainage area"},
+    )
 
     def with_updates(self, updates: dict[str, float]) -> "HydrologyParameters":
         """Return a copy with selected parameter updates."""
