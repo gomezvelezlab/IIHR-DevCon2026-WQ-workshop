@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, fields, replace
-from typing import Any, Type, TypeVar
+from dataclasses import dataclass, field, replace
 
-import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
+from devcon2026.types import ArrayConvertible
 from .constants import SECONDS_PER_HOUR
-
-T = TypeVar("T", bound="ArrayConvertible")
 
 
 @dataclass
@@ -21,20 +17,6 @@ class HydrologySimulationResult:
     discharge_cms: pd.Series
     states: pd.DataFrame
     fluxes: pd.DataFrame
-
-
-@dataclass
-class ArrayConvertible:
-    """Mixin to convert dataclass fields to/from numeric arrays for ODE solving."""
-
-    def to_array(self) -> NDArray[np.float64]:
-        """Serialize dataclass values to a float64 numpy vector."""
-        return np.array([getattr(self, f.name) for f in fields(self)], dtype=float)
-
-    @classmethod
-    def from_array(cls: Type[T], y: NDArray[np.floating[Any]]) -> T:
-        """Instantiate dataclass from a positionally aligned numpy vector."""
-        return cls(**{f.name: float(y[i]) for i, f in enumerate(fields(cls))})
 
 
 @dataclass(kw_only=True)

@@ -4,7 +4,6 @@
 # Created: 2026-02-15
 # Description: HYPE model.
 # -----------------------------------------------------------------------------
-# mypy: ignore-errors
 
 """
 This module implements the nitrogen soil processes of the HYPE model, including denitrification and plant uptake. 
@@ -35,108 +34,21 @@ params = {
 
 """
 
-from dataclasses import asdict
-from dataclasses import dataclass
-from dataclasses import fields
-from dataclasses import replace
-from pathlib import Path
-
-import numpy as np
-import pandas as pd
-from numpy.typing import NDArray
+from collections.abc import Iterable
 from typing import Any
 from typing import Mapping
 from typing import Tuple
 
+import numpy as np
+import pandas as pd
+from numpy.typing import NDArray
+
 from scipy.integrate import solve_ivp
 from tqdm.auto import tqdm
 
-__all__ = [
-    "Nitrogen",
-    "NitrogenModel_SingleCV",
-    "NitrogenParameters",
-    "NitrogenStates",
-    "default_soil_parameters",
-]
+from .types import NitrogenParameters, coerce_nitrogen_parameters
 
-
-@dataclass
-class NitrogenParameters:
-    """Parameter set for a single soil control volume nitrogen model."""
-
-    s_wp: float = 20.0
-    s_max: float = 147.3
-    smf_sat: float = 0.8
-    beta_sm: float = 1.0
-    rel_saturation_low: float = 0.2
-    rel_saturation_high: float = 0.9
-    rel_sat_limit_exp: float = 0.7
-    beta_exp: float = 2.5
-    v_degrad_son: float = 1e-5
-    v_dissol_son: float = 1e-5
-    v_dissol_fon: float = 1e-3
-    v_min_fon: float = 1e-3
-    v_denit: float = 5e-2
-    k_denit: float = 1.5
-    uptake_demand: float = 10.0
-    delta_time_solver: float = 1.0 / 24.0
-    freundlich_exponent: float = 1.0
-    freundlich_constant: float = 100.0
-    soil_bulk_density: float = 1.3
-
-    def to_dict(self) -> dict[str, float]:
-        """Return parameters as the dictionary expected by the legacy solver."""
-        return asdict(self)
-
-    def with_updates(self, updates: Mapping[str, float]) -> "NitrogenParameters":
-        """Return a copy with selected parameter updates."""
-        return replace(self, **dict(updates))
-
-
-@dataclass(kw_only=True)
-class NitrogenStates:
-    """Initial nitrogen masses in kg N/km2."""
-
-    m_don: float
-    m_din: float
-    m_son: float = 4.5e5
-    m_fon: float = 1.0e4
-    m_don_ads: float = 0.0
-
-    def to_array(self) -> NDArray[np.float64]:
-        """Serialize state values to the solver order."""
-        return np.array([getattr(self, f.name) for f in fields(self)], dtype=float)
-
-    @classmethod
-    def from_array(cls, values: NDArray[np.floating[Any]]) -> "NitrogenStates":
-        """Instantiate states from solver-order masses."""
-        return cls(**{f.name: float(values[i]) for i, f in enumerate(fields(cls))})
-
-    @classmethod
-    def from_mean_storage(cls, mean_storage: float) -> "NitrogenStates":
-        """Infer default initial dissolved masses from mean soil storage."""
-        return cls(
-            m_don=5.0 * mean_storage,
-            m_din=25.0 * mean_storage,
-            m_son=4.5e5,
-            m_fon=1.0e4,
-            m_don_ads=0.0,
-        )
-
-
-def _coerce_nitrogen_parameters(
-    params: NitrogenParameters | Mapping[str, float] | None,
-) -> NitrogenParameters:
-    if params is None:
-        return NitrogenParameters()
-    if isinstance(params, NitrogenParameters):
-        return params
-    return NitrogenParameters().with_updates(params)
-
-
-def default_soil_parameters() -> dict[str, float]:
-    """Return baseline parameters for a single soil control volume."""
-    return NitrogenParameters().to_dict()
+__all__ = ["NitrogenModel_SingleCV"]
 
 
 class NitrogenModel_SingleCV:
@@ -155,7 +67,7 @@ class NitrogenModel_SingleCV:
         Args:
             params: Dictionary of model parameters
         """
-        self.params = _coerce_nitrogen_parameters(params).to_dict()
+        self.params = coerce_nitrogen_parameters(params).to_dict()
 
     def set_parameters(self, params: NitrogenParameters | Mapping[str, float]): 
         """
@@ -171,7 +83,7 @@ class NitrogenModel_SingleCV:
 
     def tempfactor(self, temp: float) -> float:
         """
-        This is $\gamma_T$ in the mathematical description of our version of the HYPE model.
+        This is gamma_T in the mathematical description of our version of the HYPE model.
         Calculate a temperature factor based on Q10=2
         Reference rate at 20°C with thresholds at 0°C and 5°C.
         
@@ -336,7 +248,13 @@ class NitrogenModel_SingleCV:
 
         return m_don
     
-    def get_don_mass_balance_equilibrium_adjustment(self, m_don_current: float, m_don_ads_previous: float, s: float, params: dict) -> Tuple[float, float]:
+    def get_don_mass_balance_equilibrium_adjustment(
+        self,
+        m_don_current: float,
+        m_don_ads_previous: float,
+        s: float,
+        params: dict,
+    ) -> Tuple[float, float, float]:
         """
         Calculate the equilibrium adjustment for dissolved organic nitrogen (DON) mass balance due to adsorption/desorption.
 
@@ -994,26 +912,26 @@ class NitrogenModel_SingleCV:
 
         df_forcings = df_forcings.reset_index(drop=True)
         # Unpack the forcing data for the time steps
-        time_index = df_forcings["time"].values
+        time_index = pd.DatetimeIndex(df_forcings["time"])
         varnames_q_in = [name for name in df_forcings.columns.values if "q_in_" in name]
         varnames_q_out = [name for name in df_forcings.columns.values if "q_out_" in name]
         varnames_c_din_in = [name for name in df_forcings.columns.values if "c_din_in_" in name]
         varnames_c_don_in = [name for name in df_forcings.columns.values if "c_don_in_" in name]
 
-        s = df_forcings['s'].values
-        q_in = df_forcings[varnames_q_in].values
-        q_out = df_forcings[varnames_q_out].values
-        c_din_in = df_forcings[varnames_c_din_in].values
-        c_don_in = df_forcings[varnames_c_don_in].values
-        temp = df_forcings['temp'].values
+        s = df_forcings['s'].to_numpy(dtype=float)
+        q_in = df_forcings[varnames_q_in].to_numpy(dtype=float)
+        q_out = df_forcings[varnames_q_out].to_numpy(dtype=float)
+        c_din_in = df_forcings[varnames_c_din_in].to_numpy(dtype=float)
+        c_don_in = df_forcings[varnames_c_don_in].to_numpy(dtype=float)
+        temp = df_forcings['temp'].to_numpy(dtype=float)
 
         # Solver time step in days
         delta_time_solver_in_days = self.params['delta_time_solver']
 
-        iter_time = time_index[1:] # Skip the first time step since it's used for initial conditions
+        iter_time: Iterable[pd.Timestamp] = list(time_index[1:]) # Skip the first time step since it's used for initial conditions
         if progress:
             iter_time = tqdm(
-                time_index[1:], # Skip the first time step since it's used for initial conditions
+                iter_time,
                 total=len(time_index[1:]),
                 desc=progress_desc or "simulate",
                 unit="step",
@@ -1068,14 +986,12 @@ class NitrogenModel_SingleCV:
             # Save the state variables and the adsorbed DON mass at the current time step
             states_history.append(np.append(np.append(y, y_ads), delta_m_don))
 
-        iter_time = time_index
-
         # column names for the four state variables
         var_names = ['m_don', 'm_din', 'm_son', 'm_fon', 'm_don_ads', 'delta_m_don']
 
         # make a DataFrame from the array history
         df_sln = pd.DataFrame(np.array(states_history), columns=var_names)
-        df_sln['time'] = iter_time
+        df_sln['time'] = time_index
         df_sln['doy'] = df_forcings['doy'].values
         df_sln = df_sln[['time', 'doy', 'm_don', 'm_din', 'm_son', 'm_fon', 'm_don_ads', 'delta_m_don']] # Reorder columns to have time and doy first
         df_sln['s'] = s
@@ -1098,154 +1014,3 @@ class NitrogenModel_SingleCV:
         df_sln['m_don_total_flux_out'] = df_sln['q_total_out'].values * c_don # Total mass of DON in outflow (kg/km2/d)
 
         return df_sln
-
-
-class Nitrogen:
-    """Workflow facade around the single-control-volume nitrogen model."""
-
-    def __init__(
-        self,
-        *,
-        output_dir: str | Path = "demo_outputs",
-        params: NitrogenParameters | Mapping[str, float] | None = None,
-        initial_states: NitrogenStates | None = None,
-        initial_masses: NDArray[np.float64] | None = None,
-        df_forcings: pd.DataFrame | None = None,
-    ) -> None:
-        self.output_dir = Path(output_dir)
-        self.params = _coerce_nitrogen_parameters(params)
-        self.model = NitrogenModel_SingleCV(self.params)
-        self.df_forcings = df_forcings
-        self.solution_ads: pd.DataFrame | None = None
-        self.solution_no_ads: pd.DataFrame | None = None
-        self.mass_fluxes: pd.DataFrame | None = None
-        self.initial_states = initial_states
-        self.initial_masses = initial_masses
-
-    def config(
-        self,
-        *,
-        output_dir: str | Path | None = None,
-        params: NitrogenParameters | Mapping[str, float] | None = None,
-        initial_states: NitrogenStates | None = None,
-        initial_masses: NDArray[np.float64] | None = None,
-        df_forcings: pd.DataFrame | None = None,
-    ) -> "Nitrogen":
-        """Update workflow configuration and return this instance."""
-        if output_dir is not None:
-            self.output_dir = Path(output_dir)
-        if params is not None:
-            self.params = _coerce_nitrogen_parameters(params)
-            self.model = NitrogenModel_SingleCV(self.params)
-        if initial_states is not None:
-            self.initial_states = initial_states
-            self.initial_masses = None
-        if initial_masses is not None:
-            self.initial_masses = initial_masses
-            self.initial_states = NitrogenStates.from_array(initial_masses)
-        if df_forcings is not None:
-            self.df_forcings = df_forcings
-        return self
-
-    def load_hydrology(self, output_dir: str | Path, artifact_names: Any | None = None) -> "Nitrogen":
-        """Load exported hydrology artifacts and build nitrogen forcings."""
-        from devcon2026.hydrology import HydrologyArtifactNames
-
-        output_path = Path(output_dir)
-        names = artifact_names or HydrologyArtifactNames()
-        states = pd.read_csv(output_path / names.states, parse_dates=["time"])
-        fluxes = pd.read_csv(output_path / names.fluxes, parse_dates=["time"])
-        forcing = pd.read_csv(output_path / names.forcing, parse_dates=["time"])
-        self.df_forcings = self.from_hydrology_outputs(states, fluxes, forcing)
-        return self
-
-    def from_hydrology_outputs(
-        self,
-        states: pd.DataFrame,
-        fluxes: pd.DataFrame,
-        forcing: pd.DataFrame,
-    ) -> pd.DataFrame:
-        """Build the forcing dataframe expected by the nitrogen model."""
-        from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
-        from devcon2026.hydrology.export import convert_states_to_nitrogen_units
-
-        states_mm = convert_states_to_nitrogen_units(states)
-        fluxes_mm_day = convert_fluxes_to_nitrogen_units(fluxes)
-        time = pd.DatetimeIndex(fluxes["time"])
-        df_forcings = pd.DataFrame(
-            {
-                "time": time,
-                "doy": time.dayofyear + time.hour / 24.0,
-                "temp": forcing["TMP_2maboveground"].to_numpy() - 273.15,
-                "s": states_mm["s_s"].to_numpy(),
-                "q_in_1": fluxes_mm_day["p_r"].to_numpy(),
-                "q_in_2": fluxes_mm_day["f_sm"].to_numpy(),
-                "q_out_1": fluxes_mm_day["q_sc"].to_numpy(),
-                "q_out_2": fluxes_mm_day["q_sgwa"].to_numpy(),
-                "c_din_in_0": 1.0,
-                "c_din_in_1": 0.5,
-                "c_don_in_0": 0.0,
-                "c_don_in_1": 0.0,
-            }
-        )
-        self.df_forcings = df_forcings
-        return df_forcings
-
-    def default_initial_states(self) -> NitrogenStates:
-        """Infer default initial nitrogen states from configured forcings."""
-        if self.df_forcings is None:
-            raise RuntimeError("Nitrogen.load_hydrology() must run before initial states are inferred.")
-        mean_storage = float(self.df_forcings["s"].mean())
-        return NitrogenStates.from_mean_storage(mean_storage)
-
-    def default_initial_masses(self) -> NDArray[np.float64]:
-        """Initial [DON, DIN, SON, FON, DON adsorbed] masses in kg N/km2."""
-        return self.default_initial_states().to_array()
-
-    def solve(self, *, progress: bool = True) -> "Nitrogen":
-        """Run nitrogen simulations with and without DON adsorption."""
-        if self.df_forcings is None:
-            raise RuntimeError("Nitrogen.load_hydrology() must run before solve().")
-        if self.initial_states is not None:
-            masses0 = self.initial_states.to_array()
-        elif self.initial_masses is not None:
-            masses0 = self.initial_masses
-        else:
-            self.initial_states = self.default_initial_states()
-            masses0 = self.initial_states.to_array()
-
-        self.solution_ads = self.model.simulate_nitrogen_dynamics(
-            df_forcings=self.df_forcings,
-            M0=masses0,
-            with_DON_ads=True,
-            progress=progress,
-            progress_desc="nitrogen with DON adsorption",
-        )
-        self.solution_no_ads = self.model.simulate_nitrogen_dynamics(
-            df_forcings=self.df_forcings,
-            M0=masses0,
-            with_DON_ads=False,
-            progress=progress,
-            progress_desc="nitrogen without DON adsorption",
-        )
-        self.mass_fluxes = self.model.get_mass_fluxes_all_species(
-            M=self.solution_ads[["m_don", "m_din", "m_son", "m_fon"]].to_numpy(),
-            df_forcings=self.df_forcings,
-        )
-        self.mass_fluxes.insert(0, "time", self.df_forcings["time"].to_numpy())
-        return self
-
-    def export(self) -> dict[str, Path]:
-        """Write nitrogen solution and flux tables to CSV files."""
-        if self.solution_ads is None or self.solution_no_ads is None or self.mass_fluxes is None:
-            raise RuntimeError("Nitrogen.solve() must run before export().")
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        paths = {
-            "solution_with_adsorption": self.output_dir / "nitrogen_solution_with_adsorption.csv",
-            "solution_without_adsorption": self.output_dir / "nitrogen_solution_without_adsorption.csv",
-            "mass_fluxes": self.output_dir / "nitrogen_mass_fluxes.csv",
-        }
-        self.solution_ads.to_csv(paths["solution_with_adsorption"], index=False)
-        self.solution_no_ads.to_csv(paths["solution_without_adsorption"], index=False)
-        self.mass_fluxes.to_csv(paths["mass_fluxes"], index=False)
-        return paths
