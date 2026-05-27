@@ -1,10 +1,12 @@
 import numpy as np
 import pandas as pd
 
-from devcon2026.hydrology import Forcings
-from devcon2026.hydrology import Parameters
-from devcon2026.hydrology import SimulationResult
-from devcon2026.hydrology import States
+from devcon2026.hydrology import HydrologyDerivatives
+from devcon2026.hydrology import HydrologyFluxes
+from devcon2026.hydrology import HydrologyForcings
+from devcon2026.hydrology import HydrologyParameters
+from devcon2026.hydrology import HydrologySimulationResult
+from devcon2026.hydrology import HydrologyStates
 from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
 from devcon2026.hydrology.export import convert_states_to_nitrogen_units
 from devcon2026.hydrology.export import export_nitrogen_hydrology_inputs
@@ -12,9 +14,9 @@ from devcon2026.hydrology.physics import compute_fluxes
 
 
 def test_compute_fluxes_has_nitrogen_demo_columns() -> None:
-    params = Parameters()
-    states = States(s_sn=0.01, s_s=0.04, s_gwa=0.2, s_gwp=0.5)
-    forcings = Forcings(p_t=1e-7, t=5.0, e_p=2e-8)
+    params = HydrologyParameters()
+    states = HydrologyStates(s_sn=0.01, s_s=0.04, s_gwa=0.2, s_gwp=0.5)
+    forcings = HydrologyForcings(p_t=1e-7, t=5.0, e_p=2e-8)
 
     fluxes = compute_fluxes(0.0, states, params, forcings)
 
@@ -30,6 +32,23 @@ def test_compute_fluxes_has_nitrogen_demo_columns() -> None:
         "q_gwap",
         "q_gwpc",
     }
+
+
+def test_prefixed_hydrology_types_are_public_api() -> None:
+    assert HydrologyParameters().__class__.__name__ == "HydrologyParameters"
+    assert HydrologyStates(s_sn=0.01, s_s=0.04, s_gwa=0.2, s_gwp=0.5).__class__.__name__ == "HydrologyStates"
+    assert HydrologyFluxes(
+        p_sn=0.0,
+        f_sm=0.0,
+        p_r=0.0,
+        e_a=0.0,
+        q_sc=0.0,
+        q_sgwa=0.0,
+        q_gwatd=0.0,
+        q_gwac=0.0,
+        q_gwap=0.0,
+        q_gwpc=0.0,
+    ).compute_derivatives().__class__ is HydrologyDerivatives
 
 
 def test_export_nitrogen_hydrology_inputs(tmp_path) -> None:
@@ -58,7 +77,7 @@ def test_export_nitrogen_hydrology_inputs(tmp_path) -> None:
         },
         index=time,
     )
-    result = SimulationResult(
+    result = HydrologySimulationResult(
         discharge_cms=pd.Series([1.0, 2.0], index=time, name="discharge_cms"),
         states=states,
         fluxes=fluxes,
@@ -98,7 +117,7 @@ def test_export_nitrogen_hydrology_inputs(tmp_path) -> None:
 
 def test_export_nitrogen_hydrology_inputs_keeps_prefix_option(tmp_path) -> None:
     time = pd.date_range("2020-01-01", periods=1, freq="h", tz="UTC")
-    result = SimulationResult(
+    result = HydrologySimulationResult(
         discharge_cms=pd.Series([1.0], index=time, name="discharge_cms"),
         states=pd.DataFrame(
             {"s_sn": [0.01], "s_s": [0.03], "s_gwa": [0.5], "s_gwp": [1.0]},

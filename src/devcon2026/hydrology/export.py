@@ -9,7 +9,7 @@ import pandas as pd
 
 from .constants import MILLIMETERS_PER_METER
 from .constants import SECONDS_PER_DAY
-from .types import SimulationResult
+from .types import HydrologySimulationResult
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,7 @@ def _with_time_column(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def export_nitrogen_hydrology_inputs(
-    result: SimulationResult,
+    result: HydrologySimulationResult,
     forcing_df: pd.DataFrame,
     output_dir: str | Path,
     artifact_names: HydrologyArtifactNames | None = None,

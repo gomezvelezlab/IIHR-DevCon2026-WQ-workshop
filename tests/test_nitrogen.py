@@ -3,6 +3,8 @@ import pandas as pd
 import pytest
 
 from devcon2026.nitrogen import NitrogenModel_SingleCV
+from devcon2026.nitrogen import NitrogenParameters
+from devcon2026.nitrogen import NitrogenStates
 from devcon2026.nitrogen import default_soil_parameters
 
 
@@ -100,3 +102,19 @@ def test_dataframe_simulation_smoke() -> None:
         fluxes.columns
     )
     assert np.isfinite(result[["m_don", "m_din", "m_son", "m_fon"]].values).all()
+
+
+def test_parameter_and_state_dataclasses_drive_model() -> None:
+    params = NitrogenParameters(v_denit=0.01)
+    states = NitrogenStates(
+        m_don=500.0,
+        m_din=2500.0,
+        m_son=4.5e5,
+        m_fon=1.0e4,
+        m_don_ads=0.0,
+    )
+    model = NitrogenModel_SingleCV(params)
+
+    assert model.params["v_denit"] == 0.01
+    assert states.to_array().tolist() == [500.0, 2500.0, 4.5e5, 1.0e4, 0.0]
+    assert NitrogenStates.from_array(states.to_array()) == states

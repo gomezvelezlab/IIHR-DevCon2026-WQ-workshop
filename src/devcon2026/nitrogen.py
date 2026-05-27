@@ -35,43 +35,108 @@ params = {
 
 """
 
+from dataclasses import asdict
+from dataclasses import dataclass
+from dataclasses import fields
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from typing import Any
+from typing import Mapping
 from typing import Tuple
 
 from scipy.integrate import solve_ivp
 from tqdm.auto import tqdm
 
-__all__ = ["Nitrogen", "NitrogenModel_SingleCV", "default_soil_parameters"]
+__all__ = [
+    "Nitrogen",
+    "NitrogenModel_SingleCV",
+    "NitrogenParameters",
+    "NitrogenStates",
+    "default_soil_parameters",
+]
+
+
+@dataclass
+class NitrogenParameters:
+    """Parameter set for a single soil control volume nitrogen model."""
+
+    s_wp: float = 20.0
+    s_max: float = 147.3
+    smf_sat: float = 0.8
+    beta_sm: float = 1.0
+    rel_saturation_low: float = 0.2
+    rel_saturation_high: float = 0.9
+    rel_sat_limit_exp: float = 0.7
+    beta_exp: float = 2.5
+    v_degrad_son: float = 1e-5
+    v_dissol_son: float = 1e-5
+    v_dissol_fon: float = 1e-3
+    v_min_fon: float = 1e-3
+    v_denit: float = 5e-2
+    k_denit: float = 1.5
+    uptake_demand: float = 10.0
+    delta_time_solver: float = 1.0 / 24.0
+    freundlich_exponent: float = 1.0
+    freundlich_constant: float = 100.0
+    soil_bulk_density: float = 1.3
+
+    def to_dict(self) -> dict[str, float]:
+        """Return parameters as the dictionary expected by the legacy solver."""
+        return asdict(self)
+
+    def with_updates(self, updates: Mapping[str, float]) -> "NitrogenParameters":
+        """Return a copy with selected parameter updates."""
+        return replace(self, **dict(updates))
+
+
+@dataclass(kw_only=True)
+class NitrogenStates:
+    """Initial nitrogen masses in kg N/km2."""
+
+    m_don: float
+    m_din: float
+    m_son: float = 4.5e5
+    m_fon: float = 1.0e4
+    m_don_ads: float = 0.0
+
+    def to_array(self) -> NDArray[np.float64]:
+        """Serialize state values to the solver order."""
+        return np.array([getattr(self, f.name) for f in fields(self)], dtype=float)
+
+    @classmethod
+    def from_array(cls, values: NDArray[np.floating[Any]]) -> "NitrogenStates":
+        """Instantiate states from solver-order masses."""
+        return cls(**{f.name: float(values[i]) for i, f in enumerate(fields(cls))})
+
+    @classmethod
+    def from_mean_storage(cls, mean_storage: float) -> "NitrogenStates":
+        """Infer default initial dissolved masses from mean soil storage."""
+        return cls(
+            m_don=5.0 * mean_storage,
+            m_din=25.0 * mean_storage,
+            m_son=4.5e5,
+            m_fon=1.0e4,
+            m_don_ads=0.0,
+        )
+
+
+def _coerce_nitrogen_parameters(
+    params: NitrogenParameters | Mapping[str, float] | None,
+) -> NitrogenParameters:
+    if params is None:
+        return NitrogenParameters()
+    if isinstance(params, NitrogenParameters):
+        return params
+    return NitrogenParameters().with_updates(params)
 
 
 def default_soil_parameters() -> dict[str, float]:
     """Return baseline parameters for a single soil control volume."""
-    return {
-        "s_wp": 20.0,
-        "s_max": 147.3,
-        "smf_sat": 0.8,
-        "beta_sm": 1.0,
-        "rel_saturation_low": 0.2,
-        "rel_saturation_high": 0.9,
-        "rel_sat_limit_exp": 0.7,
-        "beta_exp": 2.5,
-        "v_degrad_son": 1e-5,
-        "v_dissol_son": 1e-5,
-        "v_dissol_fon": 1e-3,
-        "v_min_fon": 1e-3,
-        "v_denit": 5e-2,
-        "k_denit": 1.5,
-        "uptake_demand": 10.0,
-        "delta_time_solver": 1.0 / 24.0,
-        "freundlich_exponent": 1.0,
-        "freundlich_constant": 100.0,
-        "soil_bulk_density": 1.3,
-    }
+    return NitrogenParameters().to_dict()
 
 
 class NitrogenModel_SingleCV:
@@ -80,26 +145,27 @@ class NitrogenModel_SingleCV:
     Provides methods for calculating nitrogen transformations and plant uptake.
     """
     
-    def __init__(self, params: dict | None = None):
+    def __init__(
+        self,
+        params: NitrogenParameters | Mapping[str, float] | None = None,
+    ):
         """
         Initialize the nitrogen model with parameters.
         
         Args:
             params: Dictionary of model parameters
         """
-        if params is not None:
-            self.params = params
-        else:
-            self.params = {}
+        self.params = _coerce_nitrogen_parameters(params).to_dict()
 
-    def set_parameters(self, params: dict): 
+    def set_parameters(self, params: NitrogenParameters | Mapping[str, float]): 
         """
-        Receives a dictionary and updates the existing settings.
+        Receives a parameter object or dictionary and updates the existing settings.
         """
-        if not isinstance(params, dict): 
-            raise ValueError("Parameters should be in a dictionary.")
-
-        # This updates the existing dictionary in-place
+        if isinstance(params, NitrogenParameters):
+            self.params = params.to_dict()
+            return
+        if not isinstance(params, Mapping):
+            raise ValueError("Parameters should be in a mapping or NitrogenParameters.")
         self.params.update(params)
 
 
@@ -1037,31 +1103,48 @@ class NitrogenModel_SingleCV:
 class Nitrogen:
     """Workflow facade around the single-control-volume nitrogen model."""
 
-    def __init__(self) -> None:
-        self.output_dir = Path("demo_outputs")
-        self.params = default_soil_parameters()
+    def __init__(
+        self,
+        *,
+        output_dir: str | Path = "demo_outputs",
+        params: NitrogenParameters | Mapping[str, float] | None = None,
+        initial_states: NitrogenStates | None = None,
+        initial_masses: NDArray[np.float64] | None = None,
+        df_forcings: pd.DataFrame | None = None,
+    ) -> None:
+        self.output_dir = Path(output_dir)
+        self.params = _coerce_nitrogen_parameters(params)
         self.model = NitrogenModel_SingleCV(self.params)
-        self.df_forcings: pd.DataFrame | None = None
+        self.df_forcings = df_forcings
         self.solution_ads: pd.DataFrame | None = None
         self.solution_no_ads: pd.DataFrame | None = None
         self.mass_fluxes: pd.DataFrame | None = None
-        self.initial_masses: NDArray[np.float64] | None = None
+        self.initial_states = initial_states
+        self.initial_masses = initial_masses
 
     def config(
         self,
         *,
         output_dir: str | Path | None = None,
-        params: dict[str, float] | None = None,
+        params: NitrogenParameters | Mapping[str, float] | None = None,
+        initial_states: NitrogenStates | None = None,
         initial_masses: NDArray[np.float64] | None = None,
+        df_forcings: pd.DataFrame | None = None,
     ) -> "Nitrogen":
         """Update workflow configuration and return this instance."""
         if output_dir is not None:
             self.output_dir = Path(output_dir)
         if params is not None:
-            self.params = params
+            self.params = _coerce_nitrogen_parameters(params)
             self.model = NitrogenModel_SingleCV(self.params)
+        if initial_states is not None:
+            self.initial_states = initial_states
+            self.initial_masses = None
         if initial_masses is not None:
             self.initial_masses = initial_masses
+            self.initial_states = NitrogenStates.from_array(initial_masses)
+        if df_forcings is not None:
+            self.df_forcings = df_forcings
         return self
 
     def load_hydrology(self, output_dir: str | Path, artifact_names: Any | None = None) -> "Nitrogen":
@@ -1108,29 +1191,28 @@ class Nitrogen:
         self.df_forcings = df_forcings
         return df_forcings
 
+    def default_initial_states(self) -> NitrogenStates:
+        """Infer default initial nitrogen states from configured forcings."""
+        if self.df_forcings is None:
+            raise RuntimeError("Nitrogen.load_hydrology() must run before initial states are inferred.")
+        mean_storage = float(self.df_forcings["s"].mean())
+        return NitrogenStates.from_mean_storage(mean_storage)
+
     def default_initial_masses(self) -> NDArray[np.float64]:
         """Initial [DON, DIN, SON, FON, DON adsorbed] masses in kg N/km2."""
-        if self.df_forcings is None:
-            raise RuntimeError("Nitrogen.load_hydrology() must run before initial masses are inferred.")
-        mean_storage = float(self.df_forcings["s"].mean())
-        return np.array(
-            [
-                5.0 * mean_storage,
-                25.0 * mean_storage,
-                4.5e5,
-                1.0e4,
-                0.0,
-            ],
-            dtype=float,
-        )
+        return self.default_initial_states().to_array()
 
     def solve(self, *, progress: bool = True) -> "Nitrogen":
         """Run nitrogen simulations with and without DON adsorption."""
         if self.df_forcings is None:
             raise RuntimeError("Nitrogen.load_hydrology() must run before solve().")
-        masses0 = self.initial_masses
-        if masses0 is None:
-            masses0 = self.default_initial_masses()
+        if self.initial_states is not None:
+            masses0 = self.initial_states.to_array()
+        elif self.initial_masses is not None:
+            masses0 = self.initial_masses
+        else:
+            self.initial_states = self.default_initial_states()
+            masses0 = self.initial_states.to_array()
 
         self.solution_ads = self.model.simulate_nitrogen_dynamics(
             df_forcings=self.df_forcings,

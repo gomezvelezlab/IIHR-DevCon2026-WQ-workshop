@@ -41,6 +41,10 @@ model. Plots are written to `demo_outputs/`.
 The executable workflow is intentionally thin:
 
 ```python
+from devcon2026.hydrology import Hydrology, HydrologyArtifactNames
+from devcon2026.hydrology import HydrologyParameters, HydrologyStates
+from devcon2026.nitrogen import Nitrogen, NitrogenParameters, NitrogenStates
+
 DISCHARGE_CSV = "discharge1.csv"
 STATES_CSV = "states1.csv"
 FLUXES_CSV = "fluxes1.csv"
@@ -52,16 +56,26 @@ artifacts = HydrologyArtifactNames(
     forcing=FORCING_CSV,
 )
 
-hydrology = Hydrology()
-hydrology.config(
+hydrology = Hydrology(
     output_dir="demo_outputs/example_hydrology_model",
     artifact_names=artifacts,
+    params=HydrologyParameters(),
+    initial_states=HydrologyStates(s_sn=0.01, s_s=0.03, s_gwa=0.2, s_gwp=0.5),
 )
 hydrology.solve()
 hydrology.export()
 
-nitrogen = Nitrogen()
-nitrogen.config(output_dir="demo_outputs")
+nitrogen = Nitrogen(
+    output_dir="demo_outputs",
+    params=NitrogenParameters(v_denit=0.05),
+    initial_states=NitrogenStates(
+        m_don=500.0,
+        m_din=2500.0,
+        m_son=4.5e5,
+        m_fon=1.0e4,
+        m_don_ads=0.0,
+    ),
+)
 nitrogen.load_hydrology(hydrology.output_dir, artifact_names=artifacts)
 nitrogen.solve()
 nitrogen.export()

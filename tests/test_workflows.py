@@ -3,6 +3,8 @@ import pandas as pd
 from devcon2026.hydrology import Hydrology
 from devcon2026.hydrology import HydrologyArtifactNames
 from devcon2026.nitrogen import Nitrogen
+from devcon2026.nitrogen import NitrogenParameters
+from devcon2026.nitrogen import NitrogenStates
 
 
 def test_hydrology_facade_solves_exports_and_loads(tmp_path) -> None:
@@ -66,3 +68,30 @@ def test_nitrogen_facade_loads_hydrology_solves_and_exports(tmp_path) -> None:
         "mass_fluxes",
     }
     assert pd.read_csv(paths["mass_fluxes"]).columns[0] == "time"
+
+
+def test_nitrogen_facade_accepts_named_parameters_and_initial_states(tmp_path) -> None:
+    hydrology_dir = tmp_path / "hydrology"
+    artifacts = HydrologyArtifactNames()
+    hydrology = Hydrology(output_dir=hydrology_dir, artifact_names=artifacts, hours=4)
+    hydrology.solve(progress=False)
+    hydrology.export()
+
+    nitrogen = Nitrogen(
+        output_dir=tmp_path / "nitrogen",
+        params=NitrogenParameters(v_denit=0.01),
+        initial_states=NitrogenStates(
+            m_don=500.0,
+            m_din=2500.0,
+            m_son=4.5e5,
+            m_fon=1.0e4,
+            m_don_ads=0.0,
+        ),
+    )
+    nitrogen.load_hydrology(hydrology_dir, artifact_names=artifacts)
+    nitrogen.solve(progress=False)
+
+    assert nitrogen.params.v_denit == 0.01
+    assert nitrogen.initial_states is not None
+    assert nitrogen.solution_ads is not None
+    assert nitrogen.solution_ads["m_din"].iloc[0] == 2500.0

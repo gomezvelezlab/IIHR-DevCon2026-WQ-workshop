@@ -18,9 +18,13 @@ from matplotlib import pyplot as plt
 
 from devcon2026.hydrology import Hydrology
 from devcon2026.hydrology import HydrologyArtifactNames
+from devcon2026.hydrology import HydrologyParameters
+from devcon2026.hydrology import HydrologyStates
 from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
 from devcon2026.hydrology.export import convert_states_to_nitrogen_units
 from devcon2026.nitrogen import Nitrogen
+from devcon2026.nitrogen import NitrogenParameters
+from devcon2026.nitrogen import NitrogenStates
 
 OUTPUT_DIR = Path("demo_outputs")
 HYDROLOGY_OUTPUT_DIR = OUTPUT_DIR / "example_hydrology_model"
@@ -126,16 +130,30 @@ def main() -> None:
     progress = not args.no_progress
     OUTPUT_DIR.mkdir(exist_ok=True)
 
-    hydrology = Hydrology()
-    hydrology.config(
+    hydrology_params = HydrologyParameters()
+    hydrology_initial_states = HydrologyStates(s_sn=0.01, s_s=0.03, s_gwa=0.2, s_gwp=0.5)
+    hydrology = Hydrology(
         output_dir=HYDROLOGY_OUTPUT_DIR,
         artifact_names=HYDROLOGY_ARTIFACTS,
+        params=hydrology_params,
+        initial_states=hydrology_initial_states,
     )
     hydrology.solve(force=args.force_hydrology, progress=progress)
     hydrology.export()
 
-    nitrogen = Nitrogen()
-    nitrogen.config(output_dir=OUTPUT_DIR)
+    nitrogen_params = NitrogenParameters()
+    nitrogen_initial_states = NitrogenStates(
+        m_don=500.0,
+        m_din=2500.0,
+        m_son=4.5e5,
+        m_fon=1.0e4,
+        m_don_ads=0.0,
+    )
+    nitrogen = Nitrogen(
+        output_dir=OUTPUT_DIR,
+        params=nitrogen_params,
+        initial_states=nitrogen_initial_states,
+    )
     nitrogen.load_hydrology(
         hydrology.output_dir,
         artifact_names=HYDROLOGY_ARTIFACTS,

@@ -9,13 +9,13 @@ import pandas as pd
 import tomli
 
 from .physics import compute_extra_vars
-from .types import Parameters
+from .types import HydrologyParameters
 
 _FORCING_BASE_CACHE: dict[str, pd.DataFrame] = {}
 _OBS_BASE_CACHE: dict[str, pd.DataFrame] = {}
 
 
-def load_parameters(path: str | Path) -> Parameters:
+def load_parameters(path: str | Path) -> HydrologyParameters:
     with open(path, "rb") as fp:
         parsed = tomli.load(fp)
 
@@ -23,14 +23,14 @@ def load_parameters(path: str | Path) -> Parameters:
     for _, values in parsed.items():
         flattened.update(values)
 
-    return Parameters(**flattened)
+    return HydrologyParameters(**flattened)
 
 
 def load_forcing_data(
     path: str | Path,
     start_time: str | None,
     end_time: str | None,
-    params: Parameters,
+    params: HydrologyParameters,
 ) -> pd.DataFrame:
     cache_key = str(path)
     if cache_key not in _FORCING_BASE_CACHE:

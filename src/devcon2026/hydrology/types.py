@@ -15,7 +15,7 @@ T = TypeVar("T", bound="ArrayConvertible")
 
 
 @dataclass
-class SimulationResult:
+class HydrologySimulationResult:
     """Container for main simulation outputs indexed by model time."""
 
     discharge_cms: pd.Series
@@ -38,7 +38,7 @@ class ArrayConvertible:
 
 
 @dataclass(kw_only=True)
-class States(ArrayConvertible):
+class HydrologyStates(ArrayConvertible):
     """Hydrologic state storages."""
 
     s_sn: float = field(metadata={"unit": "m", "description": "snow storage"})
@@ -48,7 +48,7 @@ class States(ArrayConvertible):
 
 
 @dataclass(kw_only=True)
-class Derivatives(ArrayConvertible):
+class HydrologyDerivatives(ArrayConvertible):
     """Time-derivatives of hydrologic state storages."""
 
     ds_sn: float = field(
@@ -66,7 +66,7 @@ class Derivatives(ArrayConvertible):
 
 
 @dataclass
-class Fluxes:
+class HydrologyFluxes:
     """Instantaneous hydrologic fluxes for a model time step."""
 
     p_sn: float = field(metadata={"unit": "m/s", "description": "snow precipitation"})
@@ -96,9 +96,9 @@ class Fluxes:
         """Total lateral flux routed to the channel network [m/s]."""
         return self.q_sc + self.q_gwac + self.q_gwatd + self.q_gwpc
 
-    def compute_derivatives(self) -> Derivatives:
+    def compute_derivatives(self) -> "HydrologyDerivatives":
         """Compute state derivatives implied by the flux balance."""
-        return Derivatives(
+        return HydrologyDerivatives(
             ds_sn=self.p_sn - self.f_sm,
             ds_s=self.p_r + self.f_sm - self.e_a - self.q_sc - self.q_sgwa,
             ds_gwa=self.q_sgwa - self.q_gwatd - self.q_gwac - self.q_gwap,
@@ -107,7 +107,7 @@ class Fluxes:
 
 
 @dataclass
-class Parameters:
+class HydrologyParameters:
     """Model parameter set grouped by process family."""
 
     t_0: float = 0.0
@@ -141,13 +141,13 @@ class Parameters:
 
     area_km2: float = 100.0
 
-    def with_updates(self, updates: dict[str, float]) -> "Parameters":
+    def with_updates(self, updates: dict[str, float]) -> "HydrologyParameters":
         """Return a copy with selected parameter updates."""
         return replace(self, **updates)
 
 
 @dataclass(kw_only=True)
-class Forcings:
+class HydrologyForcings:
     """Atmospheric forcing variables supplied at each simulation step."""
 
     p_t: float = field(metadata={"unit": "m/s", "description": "total precipitation"})

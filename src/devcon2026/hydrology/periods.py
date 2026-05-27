@@ -8,7 +8,7 @@ import pandas as pd
 
 from .io import load_forcing_data, load_observed_discharge
 from .simulation import simulate
-from .types import Parameters, SimulationResult, States
+from .types import HydrologyParameters, HydrologySimulationResult, HydrologyStates
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,7 @@ class PeriodWindow:
 class PeriodRun:
     """Outputs for a period run including full and evaluation-only series."""
 
-    full_result: SimulationResult
+    full_result: HydrologySimulationResult
     eval_simulated: pd.Series
     eval_observed: pd.Series
 
@@ -36,8 +36,8 @@ class PeriodRun:
 def run_period(
     forcing_csv: str,
     observed_flow_csv: str,
-    params: Parameters,
-    initial_states: States,
+    params: HydrologyParameters,
+    initial_states: HydrologyStates,
     window: PeriodWindow,
     progress: bool = False,
 ) -> PeriodRun:

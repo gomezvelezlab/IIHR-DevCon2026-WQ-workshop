@@ -12,7 +12,7 @@ import scipy.special
 from numpy.typing import NDArray
 
 from .constants import SECONDS_PER_HOUR, STEFAN_BOLTZMANN_CONSTANT
-from .types import Fluxes, Forcings, Parameters, States
+from .types import HydrologyFluxes, HydrologyForcings, HydrologyParameters, HydrologyStates
 
 
 def gamma_hydrograph(t: NDArray[Any], n: float, a: float) -> NDArray[Any]:
@@ -30,7 +30,7 @@ def water_year_day(dt: datetime) -> int:
     return (dt - wy_start).days
 
 
-def gamma_1(timestamp: float, params: Parameters) -> float:
+def gamma_1(timestamp: float, params: HydrologyParameters) -> float:
     """Seasonal infiltration partition coefficient.
 
     Suggested calibration setup if this form is retained:
@@ -50,7 +50,7 @@ def gamma_1(timestamp: float, params: Parameters) -> float:
     return float(10**exponent)
 
 
-def gamma_2(timestamp: float, params: Parameters) -> float:
+def gamma_2(timestamp: float, params: HydrologyParameters) -> float:
     """Bounded seasonal infiltration partition coefficient.
 
     Suggested calibration setup:
@@ -77,7 +77,7 @@ def penman_monteith_hourly_asce(
     incoming_longwave_radiation: float | NDArray[Any],
     atmospheric_pressure: float | NDArray[Any],
     actual_vapor_pressure: float | NDArray[Any],
-    params: Parameters,
+    params: HydrologyParameters,
 ) -> float | NDArray[Any]:
     """Hourly ASCE Penman-Monteith reference ET [mm/hr]."""
     wm2_to_mj_hr = 0.0036  # [MJ hr-1] per [W]
@@ -113,7 +113,7 @@ def penman_monteith_hourly_asce(
 
 def compute_extra_vars(
     forcing_df: pd.DataFrame,
-    params: Parameters,
+    params: HydrologyParameters,
 ) -> pd.DataFrame:
     """Derive model-ready forcing variables from raw AORC columns."""
     df = forcing_df.copy()
@@ -148,8 +148,11 @@ def compute_extra_vars(
 
 
 def compute_fluxes(
-    t: float, states: States, params: Parameters, forcings: Forcings
-) -> Fluxes:
+    t: float,
+    states: HydrologyStates,
+    params: HydrologyParameters,
+    forcings: HydrologyForcings,
+) -> HydrologyFluxes:
     """Compute all process fluxes for a single model state and forcing."""
     s_sn = max(0.0, states.s_sn)  # [m]
     s_s = max(0.0, states.s_s)  # [m]
@@ -184,7 +187,7 @@ def compute_fluxes(
     q_gwap = params.k_gwap * (s_gwa / params.s_gwa_max)  # [m s-1]
     q_gwpc = params.k_gwpc * s_gwp  # [m s-1]
 
-    return Fluxes(
+    return HydrologyFluxes(
         p_sn=float(p_sn),
         f_sm=float(f_sm),
         p_r=float(p_r),
@@ -201,17 +204,17 @@ def compute_fluxes(
 def solve_ivp_fun(
     t: float,
     y: NDArray[Any],
-    params: Parameters,
-    forcings: Forcings,
+    params: HydrologyParameters,
+    forcings: HydrologyForcings,
 ) -> NDArray[Any]:
     """RHS callback for ``scipy.integrate.solve_ivp``."""
-    fluxes = compute_fluxes(t, States.from_array(y), params, forcings)
+    fluxes = compute_fluxes(t, HydrologyStates.from_array(y), params, forcings)
     return fluxes.compute_derivatives().to_array()
 
 
 def route_flux_to_discharge(
     fluxes_into_channel: NDArray[Any],
-    params: Parameters,
+    params: HydrologyParameters,
 ) -> NDArray[Any]:
     """Route channel inflow flux to outlet discharge using gamma UH."""
     time_axis = np.arange(0, len(fluxes_into_channel), dtype=float) * SECONDS_PER_HOUR  # [s]

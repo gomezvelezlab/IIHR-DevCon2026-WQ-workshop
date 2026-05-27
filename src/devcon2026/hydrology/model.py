@@ -10,7 +10,7 @@ import pandas as pd
 
 from .export import HydrologyArtifactNames, export_nitrogen_hydrology_inputs
 from .simulation import simulate
-from .types import Parameters, SimulationResult, States
+from .types import HydrologyParameters, HydrologySimulationResult, HydrologyStates
 
 
 def synthetic_hydrology_forcing(
@@ -40,14 +40,14 @@ class Hydrology:
 
     output_dir: Path = Path("demo_outputs/example_hydrology_model")
     artifact_names: HydrologyArtifactNames = field(default_factory=HydrologyArtifactNames)
-    params: Parameters = field(default_factory=Parameters)
-    initial_states: States = field(
-        default_factory=lambda: States(s_sn=0.01, s_s=0.03, s_gwa=0.2, s_gwp=0.5)
+    params: HydrologyParameters = field(default_factory=HydrologyParameters)
+    initial_states: HydrologyStates = field(
+        default_factory=lambda: HydrologyStates(s_sn=0.01, s_s=0.03, s_gwa=0.2, s_gwp=0.5)
     )
     forcing_df: pd.DataFrame | None = None
     start: str | pd.Timestamp = "2010-01-01"
     hours: int = 24 * 120
-    result: SimulationResult | None = None
+    result: HydrologySimulationResult | None = None
     source: str = "not solved"
 
     def config(
@@ -55,8 +55,8 @@ class Hydrology:
         *,
         output_dir: str | Path | None = None,
         artifact_names: HydrologyArtifactNames | None = None,
-        params: Parameters | None = None,
-        initial_states: States | None = None,
+        params: HydrologyParameters | None = None,
+        initial_states: HydrologyStates | None = None,
         forcing_df: pd.DataFrame | None = None,
         start: str | pd.Timestamp | None = None,
         hours: int | None = None,

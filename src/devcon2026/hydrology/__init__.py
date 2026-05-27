@@ -6,15 +6,18 @@ from .metrics import align_series, nse, rmse
 from .model import Hydrology, synthetic_hydrology_forcing
 from .periods import PeriodRun, PeriodWindow, run_period
 from .simulation import simulate
-from .types import Forcings, Parameters, SimulationResult, States
+from .types import HydrologyDerivatives, HydrologyFluxes, HydrologyForcings
+from .types import HydrologyParameters, HydrologySimulationResult, HydrologyStates
 
 __all__ = [
-    "Forcings",
     "Hydrology",
     "HydrologyArtifactNames",
-    "Parameters",
-    "SimulationResult",
-    "States",
+    "HydrologyDerivatives",
+    "HydrologyFluxes",
+    "HydrologyForcings",
+    "HydrologyParameters",
+    "HydrologySimulationResult",
+    "HydrologyStates",
     "align_series",
     "export_nitrogen_hydrology_inputs",
     "load_forcing_data",
