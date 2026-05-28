@@ -18,9 +18,9 @@ from devcon2026.hydrology import HydrologyParameters
 from devcon2026.hydrology import HydrologyStates
 from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
 from devcon2026.hydrology.export import convert_states_to_nitrogen_units
-from devcon2026.hydrology.export import read_table
 from devcon2026.hydrology.io import load_forcing_data
 from devcon2026.hydrology.physics import water_table_depth
+from devcon2026.tables import read_table
 
 OUTPUT_DIR = Path("demo_outputs/hydrology_tile_comparison")
 HYDROLOGY_FORCING_PARQUET = Path("data/hydrology_forcings.parquet")

@@ -13,10 +13,10 @@ from devcon2026.hydrology import HydrologyStates
 from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
 from devcon2026.hydrology.export import convert_states_to_nitrogen_units
 from devcon2026.hydrology.export import export_nitrogen_hydrology_inputs
-from devcon2026.hydrology.export import read_table
 from devcon2026.hydrology.physics import compute_fluxes
 from devcon2026.hydrology.physics import tile_drainage_flux
 from devcon2026.hydrology.physics import water_table_depth
+from devcon2026.tables import read_table
 
 
 def test_compute_fluxes_has_nitrogen_demo_columns() -> None:

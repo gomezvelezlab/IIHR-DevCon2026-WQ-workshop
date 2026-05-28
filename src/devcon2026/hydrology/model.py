@@ -8,7 +8,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .export import HydrologyArtifactNames, export_nitrogen_hydrology_inputs, read_table
+from devcon2026.tables import read_table
+
+from .export import HydrologyArtifactNames, export_nitrogen_hydrology_inputs
 from .io import load_forcing_data
 from .simulation import simulate
 from .types import HydrologyParameters, HydrologySimulationResult, HydrologyStates

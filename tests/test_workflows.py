@@ -6,10 +6,10 @@ from devcon2026.hydrology import Hydrology
 from devcon2026.hydrology import HydrologyArtifactNames
 from devcon2026.hydrology import HydrologyParameters
 from devcon2026.hydrology import load_forcing_data
-from devcon2026.hydrology.export import read_table
 from devcon2026.nitrogen import Nitrogen
 from devcon2026.nitrogen import NitrogenParameters
 from devcon2026.nitrogen import NitrogenStates
+from devcon2026.tables import read_table
 
 
 def write_raw_hydrology_forcing(path: Path) -> None:

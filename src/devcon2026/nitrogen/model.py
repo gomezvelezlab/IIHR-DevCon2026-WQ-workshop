@@ -9,7 +9,7 @@ from typing import Mapping
 import pandas as pd
 from numpy.typing import NDArray
 
-from devcon2026.hydrology.export import read_table, write_table
+from devcon2026.tables import read_table, write_table
 
 from .single_cv import NitrogenSoilLayer
 from .types import NitrogenParameters, NitrogenStates, coerce_nitrogen_parameters
