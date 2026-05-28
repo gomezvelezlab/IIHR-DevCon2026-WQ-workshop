@@ -2,7 +2,6 @@
 name = "devcon2026"
 version = "0.1.0"
 description = "Reusable analysis package extracted from research notebooks."
-readme = "README.md"
 requires-python = ">=3.10"
 license = "GPL-3.0-only"
 dependencies = [
@@ -25,7 +24,7 @@ build-backend = "hatchling.build"
 testpaths = ["tests"]
 
 [tool.mypy]
-files = ["demo1layer.py", "demo3layer.py", "demo_hydrology_tiles.py", "src/devcon2026", "tests"]
+files = ["demo3layer.py", "src/devcon2026", "tests"]
 
 [dependency-groups]
 dev = [
