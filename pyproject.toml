@@ -3,7 +3,7 @@ name = "devcon2026"
 version = "0.1.0"
 description = "Reusable analysis package extracted from research notebooks."
 requires-python = ">=3.10"
-license = "GPL-3.0-only"
+license = "MIT"
 dependencies = [
     "fastparquet>=2026.5.0",
     "numpy>=2.2.6",
