@@ -6,12 +6,14 @@ import pytest
 
 from devcon2026.nitrogen import NitrogenModel_SingleCV
 from devcon2026.nitrogen import NitrogenParameters
+from devcon2026.nitrogen import NitrogenSoilLayer
 from devcon2026.nitrogen import NitrogenStates
+from devcon2026.nitrogen import NitrogenThreeCompartment
 from devcon2026.nitrogen import default_soil_parameters
 
 
 def test_environmental_factors() -> None:
-    model = NitrogenModel_SingleCV(default_soil_parameters())
+    model = NitrogenSoilLayer(default_soil_parameters())
 
     assert model.tempfactor(-1.0) == 0.0
     assert model.tempfactor(0.0) == 0.0
@@ -22,7 +24,7 @@ def test_environmental_factors() -> None:
 
 def test_soil_moisture_factors() -> None:
     params = default_soil_parameters()
-    model = NitrogenModel_SingleCV(params)
+    model = NitrogenSoilLayer(params)
 
     assert model.moisturefactor(params["s_wp"], params) == 0.0
     assert model.moisturefactor(50.0, params) == pytest.approx(0.9467903748962812)
@@ -37,7 +39,7 @@ def test_soil_moisture_factors() -> None:
 
 def test_denitrification_and_uptake() -> None:
     params = default_soil_parameters()
-    model = NitrogenModel_SingleCV(params)
+    model = NitrogenSoilLayer(params)
 
     assert model.d_din(50.0, params["s_max"], 20.0, params) == pytest.approx(
         0.4613397305775973
@@ -48,7 +50,7 @@ def test_denitrification_and_uptake() -> None:
 
 def test_dataframe_simulation_smoke() -> None:
     params = default_soil_parameters()
-    model = NitrogenModel_SingleCV(params)
+    model = NitrogenSoilLayer(params)
     time = pd.date_range("2020-01-01", periods=4, freq="h")
     forcings = pd.DataFrame(
         {
@@ -113,7 +115,7 @@ def test_dataframe_simulation_smoke() -> None:
 
 def test_dataframe_simulation_handles_dry_storage() -> None:
     params = default_soil_parameters()
-    model = NitrogenModel_SingleCV(params)
+    model = NitrogenSoilLayer(params)
     time = pd.date_range("2020-01-01", periods=4, freq="h")
     forcings = pd.DataFrame(
         {
@@ -143,6 +145,44 @@ def test_dataframe_simulation_handles_dry_storage() -> None:
     assert result.loc[result["s"] == 0.0, ["c_din", "c_don"]].eq(0.0).all().all()
 
 
+def test_soil_layer_guards_tiny_positive_storage_fluxes() -> None:
+    params = default_soil_parameters()
+    model = NitrogenSoilLayer(params)
+    dry_storage = 1e-12
+    derivatives = model.get_derivatives_all_species(
+        M=np.array([500.0, 2500.0, 4.5e5, 1.0e4]),
+        s=dry_storage,
+        q_in=np.array([0.0, 0.0]),
+        q_out=np.array([1.0, 1.0]),
+        c_don_in=np.array([0.0, 0.0]),
+        c_din_in=np.array([0.0, 0.0]),
+        temp=20.0,
+    )
+    fluxes = model.get_mass_fluxes_all_species(
+        M=np.array([[500.0, 2500.0, 4.5e5, 1.0e4]]),
+        df_forcings=pd.DataFrame(
+            {
+                "time": [pd.Timestamp("2020-01-01")],
+                "s": [dry_storage],
+                "temp": [20.0],
+                "q_in_1": [0.0],
+                "q_in_2": [0.0],
+                "q_out_1": [1.0],
+                "q_out_2": [1.0],
+                "c_din_in_0": [0.0],
+                "c_din_in_1": [0.0],
+                "c_don_in_0": [0.0],
+                "c_don_in_1": [0.0],
+            }
+        ),
+    )
+
+    assert np.isfinite(derivatives).all()
+    assert fluxes["q_adv_don_out_flux"].iloc[0] == 0.0
+    assert fluxes["q_adv_din_out_flux"].iloc[0] == 0.0
+    assert fluxes["d_din_flux"].iloc[0] == 0.0
+
+
 def test_parameter_and_state_dataclasses_drive_model() -> None:
     params = NitrogenParameters(v_denit=0.01)
     states = NitrogenStates(
@@ -152,8 +192,9 @@ def test_parameter_and_state_dataclasses_drive_model() -> None:
         m_fon=1.0e4,
         m_don_ads=0.0,
     )
-    model = NitrogenModel_SingleCV(params)
+    model = NitrogenSoilLayer(params)
 
+    assert NitrogenModel_SingleCV is NitrogenSoilLayer
     assert model.params["v_denit"] == 0.01
     assert states.to_array().tolist() == [500.0, 2500.0, 4.5e5, 1.0e4, 0.0]
     assert NitrogenStates.from_array(states.to_array()) == states
@@ -167,3 +208,88 @@ def test_nitrogen_dataclasses_expose_units_and_descriptions() -> None:
     for field in fields(NitrogenStates):
         assert field.metadata["unit"] == "kg N/km2"
         assert field.metadata["description"]
+
+
+def test_three_compartment_routes_dissolved_mass_to_groundwater() -> None:
+    model = NitrogenThreeCompartment(
+        NitrogenParameters(
+            uptake_demand=0.0,
+            v_degrad_son=0.0,
+            v_dissol_son=0.0,
+            v_dissol_fon=0.0,
+            v_min_fon=0.0,
+            v_denit=0.0,
+        )
+    )
+    time = pd.date_range("2020-01-01", periods=4, freq="h")
+    forcings = pd.DataFrame(
+        {
+            "time": time,
+            "doy": time.dayofyear + time.hour / 24.0,
+            "temp": [10.0, 10.0, 10.0, 10.0],
+            "s_soil": [100.0, 100.0, 100.0, 100.0],
+            "s_gwa": [100.0, 100.0, 100.0, 100.0],
+            "s_gwp": [100.0, 100.0, 100.0, 100.0],
+            "q_rain": [0.0, 0.0, 0.0, 0.0],
+            "q_snowmelt": [0.0, 0.0, 0.0, 0.0],
+            "q_sc": [0.0, 0.0, 0.0, 0.0],
+            "q_sgwa": [10.0, 10.0, 10.0, 10.0],
+            "q_gwatd": [0.0, 0.0, 0.0, 0.0],
+            "q_gwac": [0.0, 0.0, 0.0, 0.0],
+            "q_gwap": [2.0, 2.0, 2.0, 2.0],
+            "q_gwpc": [0.0, 0.0, 0.0, 0.0],
+            "c_din_in_0": [0.0, 0.0, 0.0, 0.0],
+            "c_din_in_1": [0.0, 0.0, 0.0, 0.0],
+            "c_don_in_0": [0.0, 0.0, 0.0, 0.0],
+            "c_don_in_1": [0.0, 0.0, 0.0, 0.0],
+        }
+    )
+    result = model.simulate(
+        forcings,
+        initial_masses=np.array([100.0, 200.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        with_soil_don_adsorption=False,
+        progress=False,
+    )
+
+    assert result["soil_m_don"].iloc[-1] < result["soil_m_don"].iloc[0]
+    assert result["gwa_m_don"].iloc[-1] > 0.0
+    assert result["gwa_m_din"].iloc[-1] > 0.0
+    assert result["gwp_m_don"].iloc[-1] > 0.0
+    assert result["gwp_m_din"].iloc[-1] > 0.0
+
+
+def test_three_compartment_zeroes_dry_soil_concentrations() -> None:
+    model = NitrogenThreeCompartment()
+    time = pd.date_range("2020-01-01", periods=2, freq="h")
+    forcings = pd.DataFrame(
+        {
+            "time": time,
+            "doy": time.dayofyear + time.hour / 24.0,
+            "temp": [10.0, 10.0],
+            "s_soil": [1e-12, 1e-12],
+            "s_gwa": [100.0, 100.0],
+            "s_gwp": [100.0, 100.0],
+            "q_rain": [0.0, 0.0],
+            "q_snowmelt": [0.0, 0.0],
+            "q_sc": [0.0, 0.0],
+            "q_sgwa": [0.0, 0.0],
+            "q_gwatd": [0.0, 0.0],
+            "q_gwac": [0.0, 0.0],
+            "q_gwap": [0.0, 0.0],
+            "q_gwpc": [0.0, 0.0],
+            "c_din_in_0": [0.0, 0.0],
+            "c_din_in_1": [0.0, 0.0],
+            "c_don_in_0": [0.0, 0.0],
+            "c_don_in_1": [0.0, 0.0],
+        }
+    )
+
+    result = model.simulate(
+        forcings,
+        initial_masses=np.array([100.0, 200.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        with_soil_don_adsorption=False,
+        progress=False,
+    )
+
+    assert result["soil_c_don"].eq(0.0).all()
+    assert result["soil_c_din"].eq(0.0).all()

@@ -23,6 +23,13 @@ class NitrogenParameters:
         default=147.3,
         metadata={"unit": "mm", "description": "maximum soil water storage"},
     )
+    min_dissolved_storage: float = field(
+        default=0.1,
+        metadata={
+            "unit": "mm",
+            "description": "minimum storage for dissolved concentration and advective flux calculations",
+        },
+    )
     smf_sat: float = field(
         default=0.8,
         metadata={"unit": "1", "description": "saturated moisture factor"},

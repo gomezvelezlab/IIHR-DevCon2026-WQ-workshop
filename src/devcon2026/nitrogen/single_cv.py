@@ -16,6 +16,7 @@ Here is an example of the parameters used for a single soil layer:
 params = {
     's_wp': 20.0, # Wilting point storage (mm)
     's_max': 100.0, # Maximum soil storage (mm) -- Assumed to equal the thickness of soil layer (m) (thickm in HYPE)
+    'min_dissolved_storage': 0.1, # Minimum storage for dissolved concentration and advective fluxes (mm)
     'smf_sat': 0.8, # Saturated moisture factor (satact)
     'beta_sm': 1.0, # Exponent of moisture factor (thetapow)
     'rel_saturation_low': 0.2, # Low relative saturation (dimensionless, 0-1) -- This is (thetalow, %)/100
@@ -48,10 +49,22 @@ from tqdm.auto import tqdm
 
 from .types import NitrogenParameters, coerce_nitrogen_parameters
 
-__all__ = ["NitrogenModel_SingleCV"]
+__all__ = ["NitrogenSoilLayer", "NitrogenModel_SingleCV"]
 
 
-class NitrogenModel_SingleCV:
+def _dry_storage_threshold(params: Mapping[str, float]) -> float:
+    return params["min_dissolved_storage"]
+
+
+def _dissolved_concentration(
+    mass: float,
+    storage: float,
+    params: Mapping[str, float],
+) -> float:
+    return mass / storage if storage > _dry_storage_threshold(params) else 0.0
+
+
+class NitrogenSoilLayer:
     """
     A class to encapsulate the HYPE nitrogen soil processes model.
     Provides methods for calculating nitrogen transformations and plant uptake.
@@ -304,7 +317,7 @@ class NitrogenModel_SingleCV:
             Denitrification rate (kg N/km2/d)
         """
 
-        if s <= 0.0:
+        if s <= _dry_storage_threshold(params):
             return 0.0
 
         c_din = m_din / s # Inorganic N concentration (mg/L)
@@ -712,8 +725,8 @@ class NitrogenModel_SingleCV:
         M[2] = max(M[2], 0.0) # Ensure non-negative mass for SON
         M[3] = max(M[3], 0.0) # Ensure non-negative mass for FON
 
-        c_don = M[0] / s if s > 0 else 0.0
-        c_din = M[1] / s if s > 0 else 0.0
+        c_don = _dissolved_concentration(M[0], s, self.params)
+        c_din = _dissolved_concentration(M[1], s, self.params)
 
         # print(f"c_don: {c_don:.2f} mg/L, c_din: {c_din:.2f} mg/L, s: {s:.2f} mm, temp: {temp:.2f} °C")
 
@@ -814,9 +827,11 @@ class NitrogenModel_SingleCV:
             d_din_flux[i] = self.d_din(M[i,1], s[i], temp[i], self.params)
 
             q_adv_don_in_flux[i] = np.sum(q_in[i, :] * c_don_in[i, :])
-            q_adv_don_out_flux[i] = np.sum(q_out[i, :]) * (M[i,0]/ s[i] if s[i] > 0 else 0.0)
+            c_don = _dissolved_concentration(M[i,0], s[i], self.params)
+            c_din = _dissolved_concentration(M[i,1], s[i], self.params)
+            q_adv_don_out_flux[i] = np.sum(q_out[i, :]) * c_don
             q_adv_din_in_flux[i] = np.sum(q_in[i, :] * c_din_in[i, :])
-            q_adv_din_out_flux[i] = np.sum(q_out[i, :]) * (M[i,1] / s[i] if s[i] > 0 else 0.0)
+            q_adv_din_out_flux[i] = np.sum(q_out[i, :]) * c_din
 
             q_source_din_flux[i] = source_din[i] + self.Q_DIN()
             q_source_don_flux[i] = source_don[i]
@@ -877,8 +892,8 @@ class NitrogenModel_SingleCV:
         M[0] = max(M[0], 0.0) # Ensure non-negative mass for DON
         M[1] = max(M[1], 0.0) # Ensure non-negative mass for DIN
 
-        c_don = M[0] / s if s > 0 else 0.0
-        c_din = M[1] / s if s > 0 else 0.0
+        c_don = _dissolved_concentration(M[0], s, self.params)
+        c_din = _dissolved_concentration(M[1], s, self.params)
 
         dM_dt = np.array([
             np.sum(q_in * c_don_in) - np.sum(q_out * c_don), # dm_don/dt
@@ -910,7 +925,7 @@ class NitrogenModel_SingleCV:
         def solve_ivp_fun(
             t: float,
             y: NDArray[Any],
-            model_CV: NitrogenModel_SingleCV,
+            model_CV: NitrogenSoilLayer,
             forcings: dict[str, Any]
         ) -> NDArray[Any]:
 
@@ -1030,12 +1045,13 @@ class NitrogenModel_SingleCV:
         df_sln['q_total_in'] = np.sum(q_in, axis=1) # Total mass of water in inflow (mm/d)
         df_sln['q_total_out'] = np.sum(q_out, axis=1) # Total mass of water in outflow (mm/d)
 
+        dry_threshold = _dry_storage_threshold(self.params)
         c_din = pd.Series(
             np.divide(
                 df_sln['m_din'],
                 df_sln['s'],
                 out=np.zeros(len(df_sln), dtype=float),
-                where=df_sln['s'].to_numpy() > 0.0,
+                where=df_sln['s'].to_numpy() > dry_threshold,
             ),
             index=df_sln.index,
         ) # DIN concentration in outflow (mg/L)
@@ -1044,13 +1060,10 @@ class NitrogenModel_SingleCV:
                 df_sln['m_don'],
                 df_sln['s'],
                 out=np.zeros(len(df_sln), dtype=float),
-                where=df_sln['s'].to_numpy() > 0.0,
+                where=df_sln['s'].to_numpy() > dry_threshold,
             ),
             index=df_sln.index,
         )  # DON concentration in outflow (mg/L)
-        dry = df_sln['s'] < 0.01*self.params['s_max'] # Define dry conditions as soil moisture less than 1% of maximum soil storage
-        c_din.loc[dry] = 0.0
-        c_don.loc[dry] = 0.0
         df_sln['c_din'] = c_din
         df_sln['c_don'] = c_don
 
@@ -1060,3 +1073,6 @@ class NitrogenModel_SingleCV:
         df_sln['m_don_total_flux_out'] = df_sln['q_total_out'].values * c_don # Total mass of DON in outflow (kg/km2/d)
 
         return df_sln
+
+
+NitrogenModel_SingleCV = NitrogenSoilLayer

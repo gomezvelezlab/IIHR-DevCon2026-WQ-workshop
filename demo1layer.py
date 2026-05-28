@@ -1,4 +1,4 @@
-"""Run a dataframe-driven nitrogen simulation demo.
+"""Run a one-layer dataframe-driven nitrogen simulation demo.
 
 This mirrors the `origin/chucho` notebook workflow, but uses synthetic
 hydrologic model outputs because the notebook's CSV inputs are not committed.

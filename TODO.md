@@ -1,5 +1,21 @@
 # TODO
 
+## Major Design Tracks
+
+- Design multi-compartment nitrogen routing. The current nitrogen workflow uses
+  one soil control volume, while hydrology has soil, active groundwater, and
+  passive groundwater compartments. Dissolved nitrogen should move with water
+  fluxes from soil to active groundwater and from active to passive groundwater;
+  particulate/solid pools should stay in soil. Evaluate whether a
+  `Nitrogen3Layers` facade can compose three single-layer nitrogen components,
+  with groundwater layers carrying only dissolved pools and receiving upstream
+  advective mass fluxes.
+- Refine the hydrology tile drainage component. Tile fluxes are currently near
+  zero, but for this watershed they should likely dominate fast drainage. Revisit
+  the tile-drain process representation, thresholds, storage connections, and
+  parameterization before using hydrology outputs as final nitrogen transport
+  drivers.
+
 ## Ask About Nitrogen Model
 
 - Confirm whether `derivatives()` should pass `M[Ix.FON]` instead of `M[Ix.DON]`

@@ -24,19 +24,18 @@ uv run pytest
 ## Demo
 
 ```bash
-uv run python demo.py
+uv run python demo1layer.py
+uv run python demo3layer.py
 ```
 
-Use `uv run python demo.py --force-hydrology` to rerun the synthetic hydrologic
-model even when exported hydrology CSVs already exist. Use `--no-progress` for
-quiet batch runs.
+Use `--force-hydrology` to rerun hydrology even when exported Parquet artifacts
+already exist. Use `--no-progress` for quiet batch runs.
 
-The demo follows the dataframe workflow from the original nitrogen notebook. It
-loads hydrologic CSV outputs when they are present in
-`demo_outputs/example_hydrology_model/`; otherwise it runs the packaged hydrologic
-model, exports `states1.csv`, `fluxes1.csv`, `discharge1.csv`, and
-`south_fork_aorc_forcing.csv`, then uses those files to drive the nitrogen
-model. Plots are written to `demo_outputs/`.
+`demo1layer.py` follows the dataframe workflow from the original nitrogen
+notebook with a single soil control volume. `demo3layer.py` routes dissolved
+nitrogen through soil, active groundwater, and passive groundwater compartments.
+Hydrology and nitrogen handoff artifacts are Parquet files in
+`demo_outputs/example_hydrology_model/`. Plots are written to `demo_outputs/`.
 
 The executable workflow is intentionally thin:
 
@@ -45,15 +44,15 @@ from devcon2026.hydrology import Hydrology, HydrologyArtifactNames
 from devcon2026.hydrology import HydrologyParameters, HydrologyStates
 from devcon2026.nitrogen import Nitrogen, NitrogenParameters, NitrogenStates
 
-DISCHARGE_CSV = "discharge1.csv"
-STATES_CSV = "states1.csv"
-FLUXES_CSV = "fluxes1.csv"
-FORCING_CSV = "south_fork_aorc_forcing.csv"
+DISCHARGE_ARTIFACT = "discharge1.parquet"
+STATES_ARTIFACT = "states1.parquet"
+FLUXES_ARTIFACT = "fluxes1.parquet"
+FORCING_ARTIFACT = "south_fork_aorc_forcing.parquet"
 artifacts = HydrologyArtifactNames(
-    discharge=DISCHARGE_CSV,
-    states=STATES_CSV,
-    fluxes=FLUXES_CSV,
-    forcing=FORCING_CSV,
+    discharge=DISCHARGE_ARTIFACT,
+    states=STATES_ARTIFACT,
+    fluxes=FLUXES_ARTIFACT,
+    forcing=FORCING_ARTIFACT,
 )
 
 hydrology = Hydrology(

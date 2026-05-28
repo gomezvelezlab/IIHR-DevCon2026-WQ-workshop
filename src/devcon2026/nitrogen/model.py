@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 
 from devcon2026.hydrology.export import read_table, write_table
 
-from .single_cv import NitrogenModel_SingleCV
+from .single_cv import NitrogenSoilLayer
 from .types import NitrogenParameters, NitrogenStates, coerce_nitrogen_parameters
 
 
@@ -30,7 +30,7 @@ class Nitrogen:
     ) -> None:
         self.output_dir = Path(output_dir)
         self.params = coerce_nitrogen_parameters(params)
-        self.model = NitrogenModel_SingleCV(self.params)
+        self.model = NitrogenSoilLayer(self.params)
         self.df_forcings = df_forcings
         self.nitrogen_forcing_path = (
             Path(nitrogen_forcing_path) if nitrogen_forcing_path is not None else None
@@ -56,7 +56,7 @@ class Nitrogen:
             self.output_dir = Path(output_dir)
         if params is not None:
             self.params = coerce_nitrogen_parameters(params)
-            self.model = NitrogenModel_SingleCV(self.params)
+            self.model = NitrogenSoilLayer(self.params)
         if initial_states is not None:
             self.initial_states = initial_states
             self.initial_masses = None
