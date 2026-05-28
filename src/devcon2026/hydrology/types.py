@@ -155,7 +155,7 @@ class HydrologyParameters:
         metadata={"unit": "1", "description": "legacy relative tile drainage activation threshold"},
     )
     tile_drainage_method: TileDrainageMethod = field(
-        default="water_table",
+        default="relative_storage",
         metadata={"unit": "method", "description": "tile drainage formulation"},
     )
     water_table_reference_depth: float = field(
