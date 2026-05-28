@@ -9,11 +9,11 @@ import pandas as pd
 
 matplotlib.use("Agg")
 
-from matplotlib import pyplot as plt
-
 # Add the directory containing script.py to the Python path
 import os
 import sys
+
+from matplotlib import pyplot as plt
 
 utils_path = os.path.abspath("./src/")
 if utils_path not in sys.path:
@@ -31,7 +31,6 @@ from devcon2026.hydrology.export import (
 )
 from devcon2026.nitrogen import Nitrogen, NitrogenParameters, NitrogenThreeCompartment
 from devcon2026.tables import read_table, write_table
-
 
 OUTPUT_DIR = Path("demo_outputs")
 HYDROLOGY_OUTPUT_DIR = OUTPUT_DIR / "hydrology_3layer"
@@ -119,6 +118,18 @@ NITROGEN_PARAMS = NitrogenParameters(
     freundlich_exponent=1.0,  # Freundlich DON adsorption exponent [1]
     freundlich_constant=100.0,  # Freundlich DON adsorption constant [(mg N/kg soil)/(mg N/L)^n]
     soil_bulk_density=1.3,  # soil bulk density used for DON adsorption [kg/L]
+    deposition_din_fraction=1.0,
+    deposition_don_fraction=0.0,
+    deposition_son_fraction=0.0,
+    deposition_fon_fraction=0.0,
+    fertilizer_din_fraction=0.0,
+    fertilizer_don_fraction=0.0,
+    fertilizer_son_fraction=0.0,
+    fertilizer_fon_fraction=1.0,
+    manure_din_fraction=0.0,
+    manure_don_fraction=0.0,
+    manure_son_fraction=0.0,
+    manure_fon_fraction=1.0,
 )
 
 NITROGEN_SCENARIOS = {
