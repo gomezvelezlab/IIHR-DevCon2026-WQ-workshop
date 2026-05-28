@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
 import matplotlib
@@ -37,6 +36,8 @@ HYDROLOGY_SPIN_START = "2007-01-01"
 NITROGEN_SPIN_START = "2008-01-01"
 RESULTS_START = "2009-01-01"
 SIMULATION_END = "2018-01-01"
+FORCE_HYDROLOGY = False
+SHOW_PROGRESS = True
 
 HYDROLOGY_ARTIFACTS = HydrologyArtifactNames(
     discharge="discharge1.parquet",
@@ -103,21 +104,6 @@ NITROGEN_PARAMS = NitrogenParameters(
 )
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--force-hydrology",
-        action="store_true",
-        help="rerun hydrology even when exported artifacts exist",
-    )
-    parser.add_argument(
-        "--no-progress",
-        action="store_true",
-        help="disable hydrologic and nitrogen progress bars",
-    )
-    return parser.parse_args()
-
-
 def apply_time_window(
     df: pd.DataFrame,
     *,
@@ -181,8 +167,6 @@ def plot_three_compartment_solution(solution: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    args = parse_args()
-    progress = not args.no_progress
     OUTPUT_DIR.mkdir(exist_ok=True)
 
     hydrology = Hydrology(
@@ -194,7 +178,7 @@ def main() -> None:
         forcing_start=HYDROLOGY_SPIN_START,
         forcing_end=SIMULATION_END,
     )
-    hydrology.solve(force=args.force_hydrology, progress=progress)
+    hydrology.solve(force=FORCE_HYDROLOGY, progress=SHOW_PROGRESS)
     hydrology.export()
 
     states, fluxes, meteorology = hydrology.load_outputs()
@@ -212,7 +196,7 @@ def main() -> None:
     solution = model.simulate(
         df_forcings,
         with_soil_don_adsorption=True,
-        progress=progress,
+        progress=SHOW_PROGRESS,
     )
 
     write_table(solution, NITROGEN_SOLUTION_PARQUET)
