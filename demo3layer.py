@@ -15,21 +15,22 @@ from matplotlib import pyplot as plt
 import os
 import sys
 
-utils_path = os.path.abspath('./src/')
+utils_path = os.path.abspath("./src/")
 if utils_path not in sys.path:
-  sys.path.append(utils_path)
+    sys.path.append(utils_path)
 
-from devcon2026.hydrology import Hydrology
-from devcon2026.hydrology import HydrologyArtifactNames
-from devcon2026.hydrology import HydrologyParameters
-from devcon2026.hydrology import HydrologyStates
-from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
-from devcon2026.hydrology.export import convert_states_to_nitrogen_units
-from devcon2026.nitrogen import Nitrogen
-from devcon2026.nitrogen import NitrogenParameters
-from devcon2026.nitrogen import NitrogenThreeCompartment
-from devcon2026.tables import read_table
-from devcon2026.tables import write_table
+from devcon2026.hydrology import (
+    Hydrology,
+    HydrologyArtifactNames,
+    HydrologyParameters,
+    HydrologyStates,
+)
+from devcon2026.hydrology.export import (
+    convert_fluxes_to_nitrogen_units,
+    convert_states_to_nitrogen_units,
+)
+from devcon2026.nitrogen import Nitrogen, NitrogenParameters, NitrogenThreeCompartment
+from devcon2026.tables import read_table, write_table
 
 
 OUTPUT_DIR = Path("demo_outputs")
@@ -40,13 +41,15 @@ NITROGEN_FORCING_PARQUET = Path("data/nitrogen_forcings.parquet")
 HYDROLOGY_FORCINGS_PLOT = OUTPUT_DIR / "hydrology_3layer_variants.png"
 NITROGEN_DIN_PLOT = OUTPUT_DIR / "nitrogen_3layer_din_scenarios.png"
 NITROGEN_DON_PLOT = OUTPUT_DIR / "nitrogen_3layer_don_scenarios.png"
+NITROGEN_DIN_MASS_PLOT = OUTPUT_DIR / "nitrogen_3layer_din_mass_scenarios.png"
+NITROGEN_DON_MASS_PLOT = OUTPUT_DIR / "nitrogen_3layer_don_mass_scenarios.png"
 
 HYDROLOGY_SPIN_START = "2007-01-01"
 NITROGEN_SPIN_START = "2008-01-01"
 RESULTS_START = "2009-01-01"
 SIMULATION_END = "2018-01-01"
-FORCE_HYDROLOGY = False
-FORCE_NITROGEN = False
+FORCE_HYDROLOGY = True
+FORCE_NITROGEN = True
 SHOW_PROGRESS = True
 
 HYDROLOGY_ARTIFACTS = HydrologyArtifactNames(
@@ -61,7 +64,7 @@ HYDROLOGY_PARAMS = HydrologyParameters(
     m_sn=0.002,  # snowmelt storage scale [m]
     k_sn=1.157e-7,  # degree-day snowmelt coefficient [m/s/C]
     c_e=0.8,  # actual ET correction coefficient [1]
-    s_max=0.05,  # maximum soil storage [m]
+    s_max=0.1,  # maximum soil storage [m]
     m_s=1e-5,  # soil ET shape parameter [1]
     beta_s=2.0,  # soil wetness exponent [1]
     k_sgw=1e-7,  # vertical groundwater recharge flux scale [m/s]
@@ -229,7 +232,7 @@ def run_nitrogen_scenario(
 def plot_hydrology_scenarios(
     hydrology_outputs: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]],
 ) -> None:
-    fig, axs = plt.subplots(4, 1, figsize=(10, 10), sharex=True, layout="constrained")
+    fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True, layout="constrained")
     results_start = pd.Timestamp(RESULTS_START, tz="UTC")
     for name, (states, fluxes, _) in hydrology_outputs.items():
         states_mm = convert_states_to_nitrogen_units(states)
@@ -238,16 +241,28 @@ def plot_hydrology_scenarios(
         fluxes_mm_day = fluxes_mm_day[fluxes_mm_day["time"] >= results_start]
         tile_flux = fluxes_mm_day["q_gwatd"].rolling(24, min_periods=1).mean()
         gw_channel_flux = (
-            fluxes_mm_day["q_gwac"] + fluxes_mm_day["q_gwatd"] + fluxes_mm_day["q_gwpc"]
-        ).rolling(24, min_periods=1).mean()
-        axs[0].plot(states_mm["time"], states_mm["s_gwa"], linewidth=0.7, label=name)
+            (
+                fluxes_mm_day["q_gwac"]
+                + fluxes_mm_day["q_gwatd"]
+                + fluxes_mm_day["q_gwpc"]
+            )
+            .rolling(24, min_periods=1)
+            .mean()
+        )
+        axs[0].plot(states_mm["time"], states_mm["s_s"], linewidth=0.7, label=name)
         axs[1].plot(
+            states_mm["time"],
+            states_mm["s_gwa"],
+            linewidth=0.7,
+            label=name,
+        )
+        axs[2].plot(
             fluxes_mm_day["time"],
             tile_flux,
             linewidth=0.7,
             label=name,
         )
-        axs[2].plot(
+        axs[3].plot(
             fluxes_mm_day["time"],
             gw_channel_flux,
             linewidth=0.7,
@@ -255,16 +270,17 @@ def plot_hydrology_scenarios(
         )
     _, _, first_forcing = next(iter(hydrology_outputs.values()))
     first_forcing = first_forcing[first_forcing["time"] >= results_start]
-    axs[3].plot(
-        first_forcing["time"],
-        first_forcing["TMP_2maboveground"] - 273.15,
-        linewidth=0.7,
-    )
-    axs[0].set_ylabel("Active GW storage (mm)")
-    axs[1].set_ylabel("24h tile flux (mm/day)")
-    axs[2].set_ylabel("24h GW channel flux (mm/day)")
-    axs[3].set_ylabel("Air temp (C)")
-    for ax in axs[:3]:
+    # axs[3].plot(
+    #     first_forcing["time"],
+    #     first_forcing["TMP_2maboveground"] - 273.15,
+    #     linewidth=0.7,
+    # )
+    axs[0].set_ylabel("Soil water storage (mm)")
+    axs[1].set_ylabel("Active GW storage (mm)")
+    axs[2].set_ylabel("24h tile flux (mm/day)")
+    axs[3].set_ylabel("24h GW channel flux (mm/day)")
+    # axs[3].set_ylabel("Air temp (C)")
+    for ax in axs:
         ax.legend()
     fig.savefig(HYDROLOGY_FORCINGS_PLOT, dpi=150)
     plt.close(fig)
@@ -292,7 +308,40 @@ def plot_concentration_scenarios(
     for scenario_name, solution in solutions.items():
         plotted = apply_time_window(solution, start=RESULTS_START, end=SIMULATION_END)
         for ax, (column, label) in zip(axs, variables):
-            ax.plot(plotted["time"], plotted[column], linewidth=0.7, label=scenario_name)
+            ax.plot(
+                plotted["time"], plotted[column], linewidth=0.7, label=scenario_name
+            )
+            ax.set_ylabel(label)
+    for ax in axs:
+        ax.legend(loc="upper right")
+    fig.savefig(output_path, dpi=150)
+    plt.close(fig)
+
+
+def plot_mass_scenarios(
+    solutions: dict[str, pd.DataFrame],
+    *,
+    species: str,
+    output_path: Path,
+) -> None:
+    variables = [
+        (f"soil_m_{species}", f"Soil {species.upper()} (kg N/km2)"),
+        (f"gwa_m_{species}", f"Active GW {species.upper()} (kg N/km2)"),
+        (f"gwp_m_{species}", f"Passive GW {species.upper()} (kg N/km2)"),
+    ]
+    fig, axs = plt.subplots(
+        len(variables),
+        1,
+        figsize=(11, 2.4 * len(variables)),
+        sharex=True,
+        layout="constrained",
+    )
+    for scenario_name, solution in solutions.items():
+        plotted = apply_time_window(solution, start=RESULTS_START, end=SIMULATION_END)
+        for ax, (column, label) in zip(axs, variables):
+            ax.plot(
+                plotted["time"], plotted[column], linewidth=0.7, label=scenario_name
+            )
             ax.set_ylabel(label)
     for ax in axs:
         ax.legend(loc="upper right")
@@ -322,11 +371,19 @@ def main() -> None:
             )
 
     plot_hydrology_scenarios(hydrology_outputs)
-    plot_concentration_scenarios(solutions, species="din", output_path=NITROGEN_DIN_PLOT)
-    plot_concentration_scenarios(solutions, species="don", output_path=NITROGEN_DON_PLOT)
+    plot_concentration_scenarios(
+        solutions, species="din", output_path=NITROGEN_DIN_PLOT
+    )
+    plot_concentration_scenarios(
+        solutions, species="don", output_path=NITROGEN_DON_PLOT
+    )
+    plot_mass_scenarios(solutions, species="din", output_path=NITROGEN_DIN_MASS_PLOT)
+    plot_mass_scenarios(solutions, species="don", output_path=NITROGEN_DON_MASS_PLOT)
 
     baseline = "tiles_adsorption"
-    results = apply_time_window(solutions[baseline], start=RESULTS_START, end=SIMULATION_END)
+    results = apply_time_window(
+        solutions[baseline], start=RESULTS_START, end=SIMULATION_END
+    )
     print("Three-compartment nitrogen simulation demo")
     print(f"Hydrology spin window: {HYDROLOGY_SPIN_START} to {NITROGEN_SPIN_START}")
     print(f"Nitrogen spin window: {NITROGEN_SPIN_START} to {RESULTS_START}")
