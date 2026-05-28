@@ -38,6 +38,7 @@ SCENARIO_OUTPUT_DIR = OUTPUT_DIR / "nitrogen_3layer_scenarios"
 HYDROLOGY_FORCING_PARQUET = Path("data/hydrology_forcings.parquet")
 NITROGEN_FORCING_PARQUET = Path("data/nitrogen_forcings.parquet")
 HYDROLOGY_FORCINGS_PLOT = OUTPUT_DIR / "hydrology_3layer_variants.png"
+FORCINGS_PLOT = OUTPUT_DIR / "hydrology_nitrogen_forcings.png"
 NITROGEN_DIN_PLOT = OUTPUT_DIR / "nitrogen_3layer_din_scenarios.png"
 NITROGEN_DON_PLOT = OUTPUT_DIR / "nitrogen_3layer_don_scenarios.png"
 NITROGEN_DIN_MASS_PLOT = OUTPUT_DIR / "nitrogen_3layer_din_mass_scenarios.png"
@@ -47,8 +48,8 @@ HYDROLOGY_SPIN_START = "2007-01-01"
 NITROGEN_SPIN_START = "2008-01-01"
 RESULTS_START = "2009-01-01"
 SIMULATION_END = "2018-01-01"
-FORCE_HYDROLOGY = True
-FORCE_NITROGEN = True
+FORCE_HYDROLOGY = False
+FORCE_NITROGEN = False
 SHOW_PROGRESS = True
 
 HYDROLOGY_ARTIFACTS = HydrologyArtifactNames(
@@ -297,6 +298,63 @@ def plot_hydrology_scenarios(
     plt.close(fig)
 
 
+def plot_forcing_scenarios(
+    hydrology_outputs: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]],
+) -> None:
+    fig, axs = plt.subplots(6, 1, figsize=(11, 13), sharex=False, layout="constrained")
+    _, first_fluxes, first_meteorology = next(iter(hydrology_outputs.values()))
+
+    meteorology = apply_time_window(
+        first_meteorology, start=RESULTS_START, end=SIMULATION_END
+    ).copy()
+    fluxes = apply_time_window(first_fluxes, start=RESULTS_START, end=SIMULATION_END)
+    fluxes_mm_day = convert_fluxes_to_nitrogen_units(fluxes)
+
+    meteorology["time"] = pd.to_datetime(meteorology["time"], utc=True)
+    fluxes_mm_day["time"] = pd.to_datetime(fluxes_mm_day["time"], utc=True)
+
+    hydro_daily = pd.DataFrame(
+        {
+            "precipitation": meteorology.set_index("time")["precipitation_mm"]
+            .resample("D")
+            .sum(),
+            "pet": meteorology.set_index("time")["ref_et_mm_hr"].resample("D").sum(),
+            "aet": (fluxes_mm_day.set_index("time")["e_a"] / 24.0)
+            .resample("D")
+            .sum(),
+        }
+    )
+
+    nitrogen_daily = read_table(NITROGEN_FORCING_PARQUET, parse_dates=["date"])
+    nitrogen_daily["date"] = pd.to_datetime(nitrogen_daily["date"])
+    nitrogen_daily = apply_time_window(
+        nitrogen_daily.rename(columns={"date": "time"}),
+        start=RESULTS_START,
+        end=SIMULATION_END,
+    )
+
+    hydro_plots = [
+        ("precipitation", "Precipitation (mm/day)"),
+        ("pet", "PET (mm/day)"),
+        ("aet", "AET (mm/day)"),
+    ]
+    nitrogen_plots = [
+        ("deposition_kgN_km2_day", "Deposition (kg N/km2/day)"),
+        ("fertilizer_kgN_km2_day", "Fertilizer (kg N/km2/day)"),
+        ("manure_kgN_km2_day", "Manure (kg N/km2/day)"),
+    ]
+
+    for ax, (column, label) in zip(axs[:3], hydro_plots):
+        ax.plot(hydro_daily.index, hydro_daily[column], linewidth=0.7)
+        ax.set_ylabel(label)
+    for ax, (column, label) in zip(axs[3:], nitrogen_plots):
+        ax.plot(nitrogen_daily["time"], nitrogen_daily[column], linewidth=0.7)
+        ax.set_ylabel(label)
+
+    fig.savefig(FORCINGS_PLOT, dpi=150)
+    plt.close(fig)
+
+
 def plot_concentration_scenarios(
     solutions: dict[str, pd.DataFrame],
     *,
@@ -382,6 +440,7 @@ def main() -> None:
             )
 
     plot_hydrology_scenarios(hydrology_outputs)
+    plot_forcing_scenarios(hydrology_outputs)
     plot_concentration_scenarios(
         solutions, species="din", output_path=NITROGEN_DIN_PLOT
     )
