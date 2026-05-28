@@ -19,6 +19,7 @@ def write_table(df: pd.DataFrame, path: str | Path) -> None:
     """Write a dataframe artifact as Parquet or CSV based on suffix."""
     table_path = Path(path)
     if table_path.suffix.lower() == ".parquet":
-        df.to_parquet(table_path, engine="fastparquet", index=False)
+        df.to_parquet(table_path, index=False)
+        # df.to_parquet(table_path, engine="fastparquet", index=False)
         return
     df.to_csv(table_path, index=False)

@@ -11,6 +11,14 @@ matplotlib.use("Agg")
 
 from matplotlib import pyplot as plt
 
+# Add the directory containing script.py to the Python path
+import os
+import sys
+
+utils_path = os.path.abspath('./src/')
+if utils_path not in sys.path:
+  sys.path.append(utils_path)
+
 from devcon2026.hydrology import Hydrology
 from devcon2026.hydrology import HydrologyArtifactNames
 from devcon2026.hydrology import HydrologyParameters
@@ -39,7 +47,7 @@ RESULTS_START = "2009-01-01"
 SIMULATION_END = "2018-01-01"
 FORCE_HYDROLOGY = False
 FORCE_NITROGEN = False
-SHOW_PROGRESS = False
+SHOW_PROGRESS = True
 
 HYDROLOGY_ARTIFACTS = HydrologyArtifactNames(
     discharge="discharge1.parquet",
