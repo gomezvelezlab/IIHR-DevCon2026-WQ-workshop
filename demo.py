@@ -29,6 +29,7 @@ from devcon2026.nitrogen import NitrogenStates
 OUTPUT_DIR = Path("demo_outputs")
 HYDROLOGY_OUTPUT_DIR = OUTPUT_DIR / "example_hydrology_model"
 HYDROLOGY_FORCING_PARQUET = Path("data/hydrology_forcings.parquet")
+NITROGEN_FORCING_CSV = Path("data/nitrogen_forcings.csv")
 DISCHARGE_CSV = "discharge1.csv"
 STATES_CSV = "states1.csv"
 FLUXES_CSV = "fluxes1.csv"
@@ -228,6 +229,7 @@ def main() -> None:
         output_dir=OUTPUT_DIR,
         params=nitrogen_params,
         initial_states=nitrogen_initial_states,
+        nitrogen_forcing_path=NITROGEN_FORCING_CSV,
     )
     nitrogen.load_hydrology(
         hydrology.output_dir,

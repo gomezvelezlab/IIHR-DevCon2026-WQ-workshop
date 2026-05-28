@@ -24,11 +24,15 @@ class Nitrogen:
         initial_states: NitrogenStates | None = None,
         initial_masses: NDArray[Any] | None = None,
         df_forcings: pd.DataFrame | None = None,
+        nitrogen_forcing_path: str | Path | None = None,
     ) -> None:
         self.output_dir = Path(output_dir)
         self.params = coerce_nitrogen_parameters(params)
         self.model = NitrogenModel_SingleCV(self.params)
         self.df_forcings = df_forcings
+        self.nitrogen_forcing_path = (
+            Path(nitrogen_forcing_path) if nitrogen_forcing_path is not None else None
+        )
         self.solution_ads: pd.DataFrame | None = None
         self.solution_no_ads: pd.DataFrame | None = None
         self.mass_fluxes: pd.DataFrame | None = None
@@ -43,6 +47,7 @@ class Nitrogen:
         initial_states: NitrogenStates | None = None,
         initial_masses: NDArray[Any] | None = None,
         df_forcings: pd.DataFrame | None = None,
+        nitrogen_forcing_path: str | Path | None = None,
     ) -> "Nitrogen":
         """Update workflow configuration and return this instance."""
         if output_dir is not None:
@@ -58,9 +63,16 @@ class Nitrogen:
             self.initial_states = NitrogenStates.from_array(initial_masses)
         if df_forcings is not None:
             self.df_forcings = df_forcings
+        if nitrogen_forcing_path is not None:
+            self.nitrogen_forcing_path = Path(nitrogen_forcing_path)
         return self
 
-    def load_hydrology(self, output_dir: str | Path, artifact_names: Any | None = None) -> "Nitrogen":
+    def load_hydrology(
+        self,
+        output_dir: str | Path,
+        artifact_names: Any | None = None,
+        nitrogen_forcing_path: str | Path | None = None,
+    ) -> "Nitrogen":
         """Load exported hydrology artifacts and build nitrogen forcings."""
         from devcon2026.hydrology import HydrologyArtifactNames
 
@@ -70,6 +82,15 @@ class Nitrogen:
         fluxes = pd.read_csv(output_path / names.fluxes, parse_dates=["time"])
         forcing = pd.read_csv(output_path / names.forcing, parse_dates=["time"])
         self.df_forcings = self.from_hydrology_outputs(states, fluxes, forcing)
+        source_path = (
+            Path(nitrogen_forcing_path)
+            if nitrogen_forcing_path is not None
+            else self.nitrogen_forcing_path
+        )
+        if source_path is not None:
+            self.df_forcings = self.add_nitrogen_source_forcings(
+                self.df_forcings, source_path
+            )
         return self
 
     def from_hydrology_outputs(
@@ -99,10 +120,54 @@ class Nitrogen:
                 "c_din_in_1": 0.5,
                 "c_don_in_0": 0.0,
                 "c_don_in_1": 0.0,
+                "source_din": 0.0,
+                "source_don": 0.0,
+                "source_son": 0.0,
+                "source_fon": 0.0,
             }
         )
         self.df_forcings = df_forcings
         return df_forcings
+
+    def add_nitrogen_source_forcings(
+        self,
+        df_forcings: pd.DataFrame,
+        nitrogen_forcing_path: str | Path,
+    ) -> pd.DataFrame:
+        """Add partitioned nitrogen source rates to model forcings."""
+        source_df = pd.read_csv(nitrogen_forcing_path, parse_dates=["date"])
+        required = {
+            "date",
+            "fertilizer_kgN_km2_day",
+            "manure_kgN_km2_day",
+            "deposition_kgN_km2_day",
+        }
+        missing = required - set(source_df.columns)
+        if missing:
+            raise ValueError(
+                f"{nitrogen_forcing_path} is missing columns: {sorted(missing)}"
+            )
+
+        source_df = source_df[list(required)].copy()
+        source_df["date"] = source_df["date"].dt.normalize()
+        output = df_forcings.copy()
+        output["_date"] = pd.to_datetime(output["time"]).dt.tz_localize(None).dt.normalize()
+        output = output.merge(source_df, left_on="_date", right_on="date", how="left")
+        if output["date"].isna().any():
+            first_missing = output.loc[output["date"].isna(), "time"].iloc[0]
+            raise ValueError(f"No nitrogen source forcing found for {first_missing}.")
+
+        for pool in ("din", "don", "son", "fon"):
+            output[f"source_{pool}"] = (
+                output["deposition_kgN_km2_day"]
+                * getattr(self.params, f"deposition_{pool}_fraction")
+                + output["fertilizer_kgN_km2_day"]
+                * getattr(self.params, f"fertilizer_{pool}_fraction")
+                + output["manure_kgN_km2_day"]
+                * getattr(self.params, f"manure_{pool}_fraction")
+            )
+
+        return output.drop(columns=["_date", "date"])
 
     def default_initial_states(self) -> NitrogenStates:
         """Infer default initial nitrogen states from configured forcings."""

@@ -92,6 +92,43 @@ def test_hydrology_facade_loads_parquet_forcing(tmp_path) -> None:
     assert "ref_et_mm_hr" in forcing
 
 
+def test_nitrogen_source_forcings_are_partitioned_by_parameters(tmp_path) -> None:
+    source_path = tmp_path / "nitrogen_forcings.csv"
+    pd.DataFrame(
+        {
+            "date": pd.date_range("2020-01-01", periods=1, freq="D"),
+            "fertilizer_kgN_km2_day": [10.0],
+            "manure_kgN_km2_day": [20.0],
+            "deposition_kgN_km2_day": [30.0],
+        }
+    ).to_csv(source_path, index=False)
+    base = pd.DataFrame(
+        {
+            "time": pd.date_range("2020-01-01", periods=2, freq="h"),
+            "doy": [1.0, 1.0 + 1.0 / 24.0],
+            "temp": [5.0, 5.0],
+            "s": [100.0, 100.0],
+        }
+    )
+    nitrogen = Nitrogen(
+        params=NitrogenParameters(
+            deposition_din_fraction=0.5,
+            deposition_don_fraction=0.5,
+            fertilizer_din_fraction=0.25,
+            fertilizer_fon_fraction=0.75,
+            manure_son_fraction=1.0,
+            manure_fon_fraction=0.0,
+        )
+    )
+
+    forcings = nitrogen.add_nitrogen_source_forcings(base, source_path)
+
+    assert forcings["source_din"].tolist() == [17.5, 17.5]
+    assert forcings["source_don"].tolist() == [15.0, 15.0]
+    assert forcings["source_son"].tolist() == [20.0, 20.0]
+    assert forcings["source_fon"].tolist() == [7.5, 7.5]
+
+
 def test_nitrogen_facade_loads_hydrology_solves_and_exports(tmp_path) -> None:
     hydrology_dir = tmp_path / "hydrology"
     nitrogen_dir = tmp_path / "nitrogen"

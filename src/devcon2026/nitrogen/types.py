@@ -91,6 +91,54 @@ class NitrogenParameters:
         default=1.3,
         metadata={"unit": "kg/L", "description": "soil bulk density used for DON adsorption"},
     )
+    deposition_din_fraction: float = field(
+        default=1.0,
+        metadata={"unit": "1", "description": "fraction of atmospheric deposition entering DIN"},
+    )
+    deposition_don_fraction: float = field(
+        default=0.0,
+        metadata={"unit": "1", "description": "fraction of atmospheric deposition entering DON"},
+    )
+    deposition_son_fraction: float = field(
+        default=0.0,
+        metadata={"unit": "1", "description": "fraction of atmospheric deposition entering SON"},
+    )
+    deposition_fon_fraction: float = field(
+        default=0.0,
+        metadata={"unit": "1", "description": "fraction of atmospheric deposition entering FON"},
+    )
+    fertilizer_din_fraction: float = field(
+        default=1.0,
+        metadata={"unit": "1", "description": "fraction of fertilizer application entering DIN"},
+    )
+    fertilizer_don_fraction: float = field(
+        default=0.0,
+        metadata={"unit": "1", "description": "fraction of fertilizer application entering DON"},
+    )
+    fertilizer_son_fraction: float = field(
+        default=0.0,
+        metadata={"unit": "1", "description": "fraction of fertilizer application entering SON"},
+    )
+    fertilizer_fon_fraction: float = field(
+        default=0.0,
+        metadata={"unit": "1", "description": "fraction of fertilizer application entering FON"},
+    )
+    manure_din_fraction: float = field(
+        default=0.0,
+        metadata={"unit": "1", "description": "fraction of manure application entering DIN"},
+    )
+    manure_don_fraction: float = field(
+        default=0.0,
+        metadata={"unit": "1", "description": "fraction of manure application entering DON"},
+    )
+    manure_son_fraction: float = field(
+        default=0.0,
+        metadata={"unit": "1", "description": "fraction of manure application entering SON"},
+    )
+    manure_fon_fraction: float = field(
+        default=1.0,
+        metadata={"unit": "1", "description": "fraction of manure application entering FON"},
+    )
 
     def to_dict(self) -> dict[str, float]:
         """Return parameters as the dictionary expected by the legacy solver."""

@@ -684,7 +684,11 @@ class NitrogenModel_SingleCV:
         q_out: np.ndarray,
         c_don_in: np.ndarray,
         c_din_in: np.ndarray,
-        temp: float) -> np.ndarray:
+        temp: float,
+        source_din: float = 0.0,
+        source_don: float = 0.0,
+        source_son: float = 0.0,
+        source_fon: float = 0.0) -> np.ndarray:
 
         """
         Calculate the derivatives of the mass ODEs for soil dissolved organic nitrogen (DON), 
@@ -721,10 +725,10 @@ class NitrogenModel_SingleCV:
         assert not np.isnan(c_din), "c_din is NaN"
 
         dM_dt = np.array([
-            self.r_don(M[3], M[2], s, temp, self.params) + np.sum(q_in * c_don_in) - np.sum(q_out * c_don), # dm_don/dt
-            self.r_din(M[3], M[1], s, temp, self.params) + self.Q_DIN() + np.sum(q_in * c_din_in) - np.sum(q_out * c_din), # dm_din/dt
-            self.r_son(M[2], s, temp, self.params) + self.Q_SON(),  # dm_son/dt
-            self.r_fon(M[3], M[2], s, temp, self.params) + self.Q_FON() # dm_fon/dt
+            self.r_don(M[3], M[2], s, temp, self.params) + source_don + np.sum(q_in * c_don_in) - np.sum(q_out * c_don), # dm_don/dt
+            self.r_din(M[3], M[1], s, temp, self.params) + source_din + self.Q_DIN() + np.sum(q_in * c_din_in) - np.sum(q_out * c_din), # dm_din/dt
+            self.r_son(M[2], s, temp, self.params) + source_son + self.Q_SON(),  # dm_son/dt
+            self.r_fon(M[3], M[2], s, temp, self.params) + source_fon + self.Q_FON() # dm_fon/dt
             ])
         
         return dM_dt
@@ -765,6 +769,10 @@ class NitrogenModel_SingleCV:
         c_din_in = df_forcings[varnames_c_din_in].values
         c_don_in = df_forcings[varnames_c_don_in].values
         temp = df_forcings['temp'].values
+        source_din = df_forcings.get("source_din", pd.Series(0.0, index=df_forcings.index)).to_numpy(dtype=float)
+        source_don = df_forcings.get("source_don", pd.Series(0.0, index=df_forcings.index)).to_numpy(dtype=float)
+        source_son = df_forcings.get("source_son", pd.Series(0.0, index=df_forcings.index)).to_numpy(dtype=float)
+        source_fon = df_forcings.get("source_fon", pd.Series(0.0, index=df_forcings.index)).to_numpy(dtype=float)
         
         # Reaction mass fluxes for DON, DIN, SON, FON (kg N/km2/d)
         r_don_flux = np.zeros(M.shape[0]) 
@@ -787,6 +795,7 @@ class NitrogenModel_SingleCV:
 
         # Sources of mass for DON and DIN (kg N/km2/d)
         q_source_din_flux = np.zeros(M.shape[0])
+        q_source_don_flux = np.zeros(M.shape[0])
         q_source_son_flux = np.zeros(M.shape[0])
         q_source_fon_flux = np.zeros(M.shape[0])
 
@@ -809,9 +818,10 @@ class NitrogenModel_SingleCV:
             q_adv_din_in_flux[i] = np.sum(q_in[i, :] * c_din_in[i, :])
             q_adv_din_out_flux[i] = np.sum(q_out[i, :]) * (M[i,1] / s[i] if s[i] > 0 else 0.0)
 
-            q_source_din_flux[i] = self.Q_DIN()
-            q_source_son_flux[i] = self.Q_SON()
-            q_source_fon_flux[i] = self.Q_FON()
+            q_source_din_flux[i] = source_din[i] + self.Q_DIN()
+            q_source_don_flux[i] = source_don[i]
+            q_source_son_flux[i] = source_son[i] + self.Q_SON()
+            q_source_fon_flux[i] = source_fon[i] + self.Q_FON()
 
 
         df_mass_fluxes = pd.DataFrame({
@@ -830,6 +840,7 @@ class NitrogenModel_SingleCV:
             'q_adv_din_in_flux': q_adv_din_in_flux,
             'q_adv_din_out_flux': q_adv_din_out_flux,
             'q_source_din_flux': q_source_din_flux,
+            'q_source_don_flux': q_source_don_flux,
             'q_source_son_flux': q_source_son_flux,
             'q_source_fon_flux': q_source_fon_flux
         })
@@ -910,7 +921,11 @@ class NitrogenModel_SingleCV:
                 q_out=forcings['q_out'], # Outflow fluxes (mm/day) 
                 c_don_in=forcings['c_don_in'], # Concentration of DON in inflow (mg/L) 
                 c_din_in=forcings['c_din_in'], # Concentration of DIN in inflow (mg/L) 
-                temp=forcings['temp'] # Soil temperature (°C) 
+                temp=forcings['temp'], # Soil temperature (°C)
+                source_din=forcings['source_din'],
+                source_don=forcings['source_don'],
+                source_son=forcings['source_son'],
+                source_fon=forcings['source_fon'],
             )     
 
         df_forcings = df_forcings.reset_index(drop=True)
@@ -927,6 +942,10 @@ class NitrogenModel_SingleCV:
         c_din_in = df_forcings[varnames_c_din_in].to_numpy(dtype=float)
         c_don_in = df_forcings[varnames_c_don_in].to_numpy(dtype=float)
         temp = df_forcings['temp'].to_numpy(dtype=float)
+        source_din = df_forcings.get("source_din", pd.Series(0.0, index=df_forcings.index)).to_numpy(dtype=float)
+        source_don = df_forcings.get("source_don", pd.Series(0.0, index=df_forcings.index)).to_numpy(dtype=float)
+        source_son = df_forcings.get("source_son", pd.Series(0.0, index=df_forcings.index)).to_numpy(dtype=float)
+        source_fon = df_forcings.get("source_fon", pd.Series(0.0, index=df_forcings.index)).to_numpy(dtype=float)
 
         # Solver time step in days
         delta_time_solver_in_days = self.params['delta_time_solver']
@@ -957,7 +976,11 @@ class NitrogenModel_SingleCV:
                 'q_out': q_out[i,:], # Outflow fluxes (mm/day) 
                 'c_don_in': c_don_in[i,:], # Concentration of DON in inflow (mg/L)
                 'c_din_in': c_din_in[i,:], # Concentration of DIN in inflow (mg/L) 
-                'temp': temp[i] # Soil temperature (°C)
+                'temp': temp[i], # Soil temperature (°C)
+                'source_din': source_din[i],
+                'source_don': source_don[i],
+                'source_son': source_son[i],
+                'source_fon': source_fon[i],
             }
 
             sol = solve_ivp(
@@ -1000,6 +1023,10 @@ class NitrogenModel_SingleCV:
         df_sln['s'] = s
         df_sln['saturation_frac'] = s / self.params['s_max']
         df_sln['temp'] = temp
+        df_sln['source_din'] = source_din
+        df_sln['source_don'] = source_don
+        df_sln['source_son'] = source_son
+        df_sln['source_fon'] = source_fon
         df_sln['q_total_in'] = np.sum(q_in, axis=1) # Total mass of water in inflow (mm/d)
         df_sln['q_total_out'] = np.sum(q_out, axis=1) # Total mass of water in outflow (mm/d)
 

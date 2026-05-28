@@ -91,6 +91,10 @@ def test_dataframe_simulation_smoke() -> None:
         "s",
         "saturation_frac",
         "temp",
+        "source_din",
+        "source_don",
+        "source_son",
+        "source_fon",
         "q_total_in",
         "q_total_out",
         "c_din",
@@ -101,7 +105,7 @@ def test_dataframe_simulation_smoke() -> None:
         "m_don_total_flux_out",
     ]
     assert len(result) == len(forcings)
-    assert {"r_don_flux", "q_adv_din_in_flux", "q_adv_don_out_flux"} <= set(
+    assert {"r_don_flux", "q_adv_din_in_flux", "q_adv_don_out_flux", "q_source_din_flux"} <= set(
         fluxes.columns
     )
     assert np.isfinite(result[["m_don", "m_din", "m_son", "m_fon"]].values).all()
