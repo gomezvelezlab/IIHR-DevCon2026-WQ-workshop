@@ -100,7 +100,7 @@ HYDROLOGY_SCENARIOS = {
 
 NITROGEN_PARAMS = NitrogenParameters(
     s_wp=20.0,  # wilting point soil water storage [mm]
-    s_max=147.3,  # maximum soil water storage [mm]
+    s_max=1 * HYDROLOGY_PARAMS.s_max,  # maximum soil water storage [mm]
     min_dissolved_storage=0.1,  # minimum storage for dissolved concentrations [mm]
     smf_sat=0.8,  # saturated moisture factor [1]
     beta_sm=1.0,  # moisture factor exponent [1]
@@ -114,7 +114,7 @@ NITROGEN_PARAMS = NitrogenParameters(
     v_min_fon=1e-3,  # maximum mineralization rate of fast organic nitrogen [1/day]
     v_denit=5e-2,  # maximum denitrification rate [1/day]
     k_denit=1.5,  # denitrification half-saturation concentration [mg/L]
-    uptake_demand=10.0,  # plant inorganic nitrogen uptake demand [kg N/km2/day]
+    uptake_demand=50.0,  # plant inorganic nitrogen uptake demand [kg N/km2/day]
     delta_time_solver=1.0 / 24.0,  # nitrogen solver time step [day]
     freundlich_exponent=1.0,  # Freundlich DON adsorption exponent [1]
     freundlich_constant=100.0,  # Freundlich DON adsorption constant [(mg N/kg soil)/(mg N/L)^n]
