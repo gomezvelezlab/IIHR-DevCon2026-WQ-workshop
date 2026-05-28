@@ -6,6 +6,7 @@ from devcon2026.hydrology import Hydrology
 from devcon2026.hydrology import HydrologyArtifactNames
 from devcon2026.hydrology import HydrologyParameters
 from devcon2026.hydrology import load_forcing_data
+from devcon2026.hydrology.export import read_table
 from devcon2026.nitrogen import Nitrogen
 from devcon2026.nitrogen import NitrogenParameters
 from devcon2026.nitrogen import NitrogenStates
@@ -48,10 +49,10 @@ def test_load_forcing_data_reads_parquet(tmp_path) -> None:
 def test_hydrology_facade_solves_exports_and_loads(tmp_path) -> None:
     output_dir = tmp_path / "hydrology"
     artifacts = HydrologyArtifactNames(
-        discharge="discharge123.csv",
-        states="states123.csv",
-        fluxes="fluxes123.csv",
-        forcing="forcing123.csv",
+        discharge="discharge123.parquet",
+        states="states123.parquet",
+        fluxes="fluxes123.parquet",
+        forcing="forcing123.parquet",
     )
     hydrology = Hydrology()
     hydrology.config(output_dir=output_dir, artifact_names=artifacts, hours=3)
@@ -62,8 +63,8 @@ def test_hydrology_facade_solves_exports_and_loads(tmp_path) -> None:
 
     assert hydrology.source == "generated from synthetic forcing"
     assert set(paths) == {"discharge", "states", "fluxes", "forcing"}
-    assert paths["discharge"].name == "discharge123.csv"
-    assert paths["states"].name == "states123.csv"
+    assert paths["discharge"].name == "discharge123.parquet"
+    assert paths["states"].name == "states123.parquet"
     assert len(states) == 3
     assert len(fluxes) == 3
     assert len(forcing) == 3
@@ -72,7 +73,7 @@ def test_hydrology_facade_solves_exports_and_loads(tmp_path) -> None:
     cached.config(output_dir=output_dir, artifact_names=artifacts, hours=3)
     cached.solve(progress=False)
 
-    assert cached.source == "loaded from existing CSVs"
+    assert cached.source == "loaded from existing artifacts"
 
 
 def test_hydrology_facade_loads_parquet_forcing(tmp_path) -> None:
@@ -93,7 +94,7 @@ def test_hydrology_facade_loads_parquet_forcing(tmp_path) -> None:
 
 
 def test_nitrogen_source_forcings_are_partitioned_by_parameters(tmp_path) -> None:
-    source_path = tmp_path / "nitrogen_forcings.csv"
+    source_path = tmp_path / "nitrogen_forcings.parquet"
     pd.DataFrame(
         {
             "date": pd.date_range("2020-01-01", periods=1, freq="D"),
@@ -101,7 +102,7 @@ def test_nitrogen_source_forcings_are_partitioned_by_parameters(tmp_path) -> Non
             "manure_kgN_km2_day": [20.0],
             "deposition_kgN_km2_day": [30.0],
         }
-    ).to_csv(source_path, index=False)
+    ).to_parquet(source_path, engine="fastparquet", index=False)
     base = pd.DataFrame(
         {
             "time": pd.date_range("2020-01-01", periods=2, freq="h"),
@@ -133,10 +134,10 @@ def test_nitrogen_facade_loads_hydrology_solves_and_exports(tmp_path) -> None:
     hydrology_dir = tmp_path / "hydrology"
     nitrogen_dir = tmp_path / "nitrogen"
     artifacts = HydrologyArtifactNames(
-        discharge="discharge123.csv",
-        states="states123.csv",
-        fluxes="fluxes123.csv",
-        forcing="forcing123.csv",
+        discharge="discharge123.parquet",
+        states="states123.parquet",
+        fluxes="fluxes123.parquet",
+        forcing="forcing123.parquet",
     )
     hydrology = Hydrology()
     hydrology.config(output_dir=hydrology_dir, artifact_names=artifacts, hours=4)
@@ -159,7 +160,7 @@ def test_nitrogen_facade_loads_hydrology_solves_and_exports(tmp_path) -> None:
         "solution_without_adsorption",
         "mass_fluxes",
     }
-    assert pd.read_csv(paths["mass_fluxes"]).columns[0] == "time"
+    assert read_table(paths["mass_fluxes"]).columns[0] == "time"
 
 
 def test_nitrogen_facade_accepts_named_parameters_and_initial_states(tmp_path) -> None:

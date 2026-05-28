@@ -8,5 +8,11 @@ wheels/
 demo_outputs/
 notebooks/wq-modeling-iihr/
 
+# Local/raw forcing inputs. Keep curated Parquet forcings in git.
+data/*
+!data/
+!data/hydrology_forcings.parquet
+!data/nitrogen_forcings.parquet
+
 # Virtual environments
 .venv

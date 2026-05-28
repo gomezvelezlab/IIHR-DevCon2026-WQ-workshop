@@ -12,6 +12,7 @@ from devcon2026.hydrology import HydrologyStates
 from devcon2026.hydrology.export import convert_fluxes_to_nitrogen_units
 from devcon2026.hydrology.export import convert_states_to_nitrogen_units
 from devcon2026.hydrology.export import export_nitrogen_hydrology_inputs
+from devcon2026.hydrology.export import read_table
 from devcon2026.hydrology.physics import compute_fluxes
 
 
@@ -101,14 +102,16 @@ def test_export_nitrogen_hydrology_inputs(tmp_path) -> None:
     paths = export_nitrogen_hydrology_inputs(result, forcing, tmp_path)
 
     assert set(paths) == {"discharge", "states", "fluxes", "forcing"}
-    assert pd.read_csv(paths["states"]).columns.tolist() == [
+    assert paths["states"].suffix == ".parquet"
+    assert paths["fluxes"].suffix == ".parquet"
+    assert read_table(paths["states"]).columns.tolist() == [
         "time",
         "s_sn",
         "s_s",
         "s_gwa",
         "s_gwp",
     ]
-    assert pd.read_csv(paths["fluxes"]).columns.tolist() == [
+    assert read_table(paths["fluxes"]).columns.tolist() == [
         "time",
         "p_sn",
         "f_sm",
@@ -151,9 +154,9 @@ def test_export_nitrogen_hydrology_inputs_keeps_prefix_option(tmp_path) -> None:
 
     paths = export_nitrogen_hydrology_inputs(result, forcing, tmp_path, prefix="123")
 
-    assert paths["discharge"].name == "discharge123.csv"
-    assert paths["states"].name == "states123.csv"
-    assert paths["fluxes"].name == "fluxes123.csv"
+    assert paths["discharge"].name == "discharge123.parquet"
+    assert paths["states"].name == "states123.parquet"
+    assert paths["fluxes"].name == "fluxes123.parquet"
 
 
 def test_nitrogen_unit_conversions() -> None:

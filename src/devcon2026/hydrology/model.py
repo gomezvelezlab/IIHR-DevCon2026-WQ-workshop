@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .export import HydrologyArtifactNames, export_nitrogen_hydrology_inputs
+from .export import HydrologyArtifactNames, export_nitrogen_hydrology_inputs, read_table
 from .io import load_forcing_data
 from .simulation import simulate
 from .types import HydrologyParameters, HydrologySimulationResult, HydrologyStates
@@ -106,7 +106,7 @@ class Hydrology:
     def solve(self, *, use_cache: bool = True, force: bool = False, progress: bool = True) -> Hydrology:
         """Run the hydrologic model unless exported outputs can be reused."""
         if use_cache and not force and self.cache_exists():
-            self.source = "loaded from existing CSVs"
+            self.source = "loaded from existing artifacts"
             return self
 
         generated_synthetic = False
@@ -166,9 +166,15 @@ class Hydrology:
         """Load exported states, fluxes, and forcing dataframes."""
         if not self.cache_exists():
             raise FileNotFoundError(f"Missing hydrology outputs in {self.output_dir}.")
-        states = pd.read_csv(self.output_dir / self.artifact_names.states, parse_dates=["time"])
-        fluxes = pd.read_csv(self.output_dir / self.artifact_names.fluxes, parse_dates=["time"])
-        forcing = pd.read_csv(
+        states = read_table(
+            self.output_dir / self.artifact_names.states,
+            parse_dates=["time"],
+        )
+        fluxes = read_table(
+            self.output_dir / self.artifact_names.fluxes,
+            parse_dates=["time"],
+        )
+        forcing = read_table(
             self.output_dir / self.artifact_names.forcing,
             parse_dates=["time"],
         )

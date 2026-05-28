@@ -14,12 +14,29 @@ from .types import HydrologySimulationResult
 
 @dataclass(frozen=True)
 class HydrologyArtifactNames:
-    """CSV filenames shared by hydrology exports and nitrogen imports."""
+    """Artifact filenames shared by hydrology exports and nitrogen imports."""
 
-    discharge: str = "discharge1.csv"
-    states: str = "states1.csv"
-    fluxes: str = "fluxes1.csv"
-    forcing: str = "south_fork_aorc_forcing.csv"
+    discharge: str = "discharge1.parquet"
+    states: str = "states1.parquet"
+    fluxes: str = "fluxes1.parquet"
+    forcing: str = "south_fork_aorc_forcing.parquet"
+
+
+def read_table(path: str | Path, parse_dates: list[str] | None = None) -> pd.DataFrame:
+    """Read a dataframe artifact from Parquet or CSV."""
+    table_path = Path(path)
+    if table_path.suffix.lower() == ".parquet":
+        return pd.read_parquet(table_path)
+    return pd.read_csv(table_path, parse_dates=parse_dates)
+
+
+def write_table(df: pd.DataFrame, path: str | Path) -> None:
+    """Write a dataframe artifact as Parquet or CSV based on suffix."""
+    table_path = Path(path)
+    if table_path.suffix.lower() == ".parquet":
+        df.to_parquet(table_path, engine="fastparquet", index=False)
+        return
+    df.to_csv(table_path, index=False)
 
 
 def _with_time_column(df: pd.DataFrame) -> pd.DataFrame:
@@ -35,18 +52,18 @@ def export_nitrogen_hydrology_inputs(
     artifact_names: HydrologyArtifactNames | None = None,
     prefix: str = "1",
 ) -> dict[str, Path]:
-    """Write hydrologic outputs in the CSV shape expected by nitrogen demos.
+    """Write hydrologic outputs in the shape expected by nitrogen demos.
 
-    `states<prefix>.csv` stores hydrologic storages in meters and
-    `fluxes<prefix>.csv` stores hydrologic fluxes in meters per second, matching
+    `states<prefix>` stores hydrologic storages in meters and
+    `fluxes<prefix>` stores hydrologic fluxes in meters per second, matching
     the chucho-branch notebook that converts those values to nitrogen units.
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     names = artifact_names or HydrologyArtifactNames(
-        discharge=f"discharge{prefix}.csv",
-        states=f"states{prefix}.csv",
-        fluxes=f"fluxes{prefix}.csv",
+        discharge=f"discharge{prefix}.parquet",
+        states=f"states{prefix}.parquet",
+        fluxes=f"fluxes{prefix}.parquet",
     )
 
     discharge_path = output_path / names.discharge
@@ -56,14 +73,14 @@ def export_nitrogen_hydrology_inputs(
 
     discharge_output = result.discharge_cms.rename("discharge_cms").reset_index()
     discharge_output = discharge_output.rename(columns={discharge_output.columns[0]: "time"})
-    discharge_output.to_csv(discharge_path, index=False)
-    _with_time_column(result.states).to_csv(states_path, index=False)
-    _with_time_column(result.fluxes).to_csv(fluxes_path, index=False)
+    write_table(discharge_output, discharge_path)
+    write_table(_with_time_column(result.states), states_path)
+    write_table(_with_time_column(result.fluxes), fluxes_path)
 
     forcing_output = forcing_df.copy()
     if "time" not in forcing_output.columns:
         forcing_output.insert(0, "time", forcing_output.index)
-    forcing_output.to_csv(forcing_path, index=False)
+    write_table(forcing_output, forcing_path)
 
     return {
         "discharge": discharge_path,

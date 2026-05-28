@@ -29,16 +29,16 @@ from devcon2026.nitrogen import NitrogenStates
 OUTPUT_DIR = Path("demo_outputs")
 HYDROLOGY_OUTPUT_DIR = OUTPUT_DIR / "example_hydrology_model"
 HYDROLOGY_FORCING_PARQUET = Path("data/hydrology_forcings.parquet")
-NITROGEN_FORCING_CSV = Path("data/nitrogen_forcings.csv")
-DISCHARGE_CSV = "discharge1.csv"
-STATES_CSV = "states1.csv"
-FLUXES_CSV = "fluxes1.csv"
-FORCING_CSV = "south_fork_aorc_forcing.csv"
+NITROGEN_FORCING_PARQUET = Path("data/nitrogen_forcings.parquet")
+DISCHARGE_ARTIFACT = "discharge1.parquet"
+STATES_ARTIFACT = "states1.parquet"
+FLUXES_ARTIFACT = "fluxes1.parquet"
+FORCING_ARTIFACT = "south_fork_aorc_forcing.parquet"
 HYDROLOGY_ARTIFACTS = HydrologyArtifactNames(
-    discharge=DISCHARGE_CSV,
-    states=STATES_CSV,
-    fluxes=FLUXES_CSV,
-    forcing=FORCING_CSV,
+    discharge=DISCHARGE_ARTIFACT,
+    states=STATES_ARTIFACT,
+    fluxes=FLUXES_ARTIFACT,
+    forcing=FORCING_ARTIFACT,
 )
 
 
@@ -229,7 +229,7 @@ def main() -> None:
         output_dir=OUTPUT_DIR,
         params=nitrogen_params,
         initial_states=nitrogen_initial_states,
-        nitrogen_forcing_path=NITROGEN_FORCING_CSV,
+        nitrogen_forcing_path=NITROGEN_FORCING_PARQUET,
     )
     nitrogen.load_hydrology(
         hydrology.output_dir,

@@ -9,6 +9,8 @@ from typing import Mapping
 import pandas as pd
 from numpy.typing import NDArray
 
+from devcon2026.hydrology.export import read_table, write_table
+
 from .single_cv import NitrogenModel_SingleCV
 from .types import NitrogenParameters, NitrogenStates, coerce_nitrogen_parameters
 
@@ -78,9 +80,9 @@ class Nitrogen:
 
         output_path = Path(output_dir)
         names = artifact_names or HydrologyArtifactNames()
-        states = pd.read_csv(output_path / names.states, parse_dates=["time"])
-        fluxes = pd.read_csv(output_path / names.fluxes, parse_dates=["time"])
-        forcing = pd.read_csv(output_path / names.forcing, parse_dates=["time"])
+        states = read_table(output_path / names.states, parse_dates=["time"])
+        fluxes = read_table(output_path / names.fluxes, parse_dates=["time"])
+        forcing = read_table(output_path / names.forcing, parse_dates=["time"])
         self.df_forcings = self.from_hydrology_outputs(states, fluxes, forcing)
         source_path = (
             Path(nitrogen_forcing_path)
@@ -135,7 +137,8 @@ class Nitrogen:
         nitrogen_forcing_path: str | Path,
     ) -> pd.DataFrame:
         """Add partitioned nitrogen source rates to model forcings."""
-        source_df = pd.read_csv(nitrogen_forcing_path, parse_dates=["date"])
+        source_df = read_table(nitrogen_forcing_path, parse_dates=["date"])
+        source_df["date"] = pd.to_datetime(source_df["date"])
         required = {
             "date",
             "fertilizer_kgN_km2_day",
@@ -219,11 +222,11 @@ class Nitrogen:
             raise RuntimeError("Nitrogen.solve() must run before export().")
         self.output_dir.mkdir(parents=True, exist_ok=True)
         paths = {
-            "solution_with_adsorption": self.output_dir / "nitrogen_solution_with_adsorption.csv",
-            "solution_without_adsorption": self.output_dir / "nitrogen_solution_without_adsorption.csv",
-            "mass_fluxes": self.output_dir / "nitrogen_mass_fluxes.csv",
+            "solution_with_adsorption": self.output_dir / "nitrogen_solution_with_adsorption.parquet",
+            "solution_without_adsorption": self.output_dir / "nitrogen_solution_without_adsorption.parquet",
+            "mass_fluxes": self.output_dir / "nitrogen_mass_fluxes.parquet",
         }
-        self.solution_ads.to_csv(paths["solution_with_adsorption"], index=False)
-        self.solution_no_ads.to_csv(paths["solution_without_adsorption"], index=False)
-        self.mass_fluxes.to_csv(paths["mass_fluxes"], index=False)
+        write_table(self.solution_ads, paths["solution_with_adsorption"])
+        write_table(self.solution_no_ads, paths["solution_without_adsorption"])
+        write_table(self.mass_fluxes, paths["mass_fluxes"])
         return paths
