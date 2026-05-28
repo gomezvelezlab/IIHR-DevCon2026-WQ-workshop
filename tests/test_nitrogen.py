@@ -42,6 +42,7 @@ def test_denitrification_and_uptake() -> None:
     assert model.d_din(50.0, params["s_max"], 20.0, params) == pytest.approx(
         0.4613397305775973
     )
+    assert model.d_din(50.0, 0.0, 20.0, params) == 0.0
     assert model.u_din(50.0, 100.0, params) == pytest.approx(10.0)
 
 
@@ -104,6 +105,38 @@ def test_dataframe_simulation_smoke() -> None:
         fluxes.columns
     )
     assert np.isfinite(result[["m_don", "m_din", "m_son", "m_fon"]].values).all()
+
+
+def test_dataframe_simulation_handles_dry_storage() -> None:
+    params = default_soil_parameters()
+    model = NitrogenModel_SingleCV(params)
+    time = pd.date_range("2020-01-01", periods=4, freq="h")
+    forcings = pd.DataFrame(
+        {
+            "time": time,
+            "doy": time.dayofyear + time.hour / 24.0,
+            "temp": [10.0, 10.0, 11.0, 11.0],
+            "s": [100.0, 0.0, 0.0, 100.0],
+            "q_in_1": [1.0, 0.0, 0.0, 1.0],
+            "q_in_2": [0.0, 0.0, 0.0, 0.0],
+            "q_out_1": [0.2, 0.0, 0.0, 0.2],
+            "q_out_2": [0.1, 0.0, 0.0, 0.1],
+            "c_din_in_0": [1.0, 1.0, 1.0, 1.0],
+            "c_din_in_1": [0.5, 0.5, 0.5, 0.5],
+            "c_don_in_0": [0.0, 0.0, 0.0, 0.0],
+            "c_don_in_1": [0.0, 0.0, 0.0, 0.0],
+        }
+    )
+
+    result = model.simulate_nitrogen_dynamics(
+        df_forcings=forcings,
+        M0=np.array([500.0, 2500.0, 4.5e5, 1.0e4, 0.0]),
+        with_DON_ads=True,
+        progress=False,
+    )
+
+    assert np.isfinite(result[["m_don", "m_din", "m_son", "m_fon"]].values).all()
+    assert result.loc[result["s"] == 0.0, ["c_din", "c_don"]].eq(0.0).all().all()
 
 
 def test_parameter_and_state_dataclasses_drive_model() -> None:

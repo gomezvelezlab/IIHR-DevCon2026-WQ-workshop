@@ -28,6 +28,7 @@ from devcon2026.nitrogen import NitrogenStates
 
 OUTPUT_DIR = Path("demo_outputs")
 HYDROLOGY_OUTPUT_DIR = OUTPUT_DIR / "example_hydrology_model"
+HYDROLOGY_FORCING_PARQUET = Path("data/hydrology_forcings.parquet")
 DISCHARGE_CSV = "discharge1.csv"
 STATES_CSV = "states1.csv"
 FLUXES_CSV = "fluxes1.csv"
@@ -48,11 +49,20 @@ def plot_hydrologic_forcings(
     fig, axs = plt.subplots(4, 1, figsize=(10, 10), sharex=True, layout="constrained")
     axs[0].plot(states_mm["time"], states_mm["s_s"], linewidth=0.7)
     axs[0].set_ylabel("Soil storage (mm)")
-    axs[1].plot(fluxes_mm_day["time"], fluxes_mm_day["p_r"], linewidth=0.7, label="Rainfall")
-    axs[1].plot(fluxes_mm_day["time"], fluxes_mm_day["f_sm"], linewidth=0.7, label="Snowmelt")
+    axs[1].plot(
+        fluxes_mm_day["time"], fluxes_mm_day["p_r"], linewidth=0.7, label="Rainfall"
+    )
+    axs[1].plot(
+        fluxes_mm_day["time"], fluxes_mm_day["f_sm"], linewidth=0.7, label="Snowmelt"
+    )
     axs[1].set_ylabel("Fluxes in (mm/day)")
     axs[1].legend()
-    axs[2].plot(fluxes_mm_day["time"], fluxes_mm_day["q_sc"], linewidth=0.7, label="Flow to channel")
+    axs[2].plot(
+        fluxes_mm_day["time"],
+        fluxes_mm_day["q_sc"],
+        linewidth=0.7,
+        label="Flow to channel",
+    )
     axs[2].plot(
         fluxes_mm_day["time"],
         fluxes_mm_day["q_sgwa"],
@@ -71,13 +81,24 @@ def plot_hydrologic_forcings(
     plt.close(fig)
 
 
-def plot_nitrogen_solution(solution_ads: pd.DataFrame, solution_no_ads: pd.DataFrame) -> None:
+def plot_nitrogen_solution(
+    solution_ads: pd.DataFrame, solution_no_ads: pd.DataFrame
+) -> None:
     variables = ["m_don", "m_din", "m_son", "m_fon", "m_don_ads", "c_din", "c_don"]
     fig, axs = plt.subplots(
-        len(variables), 1, figsize=(10, 2.2 * len(variables)), sharex=True, layout="constrained"
+        len(variables),
+        1,
+        figsize=(10, 2.2 * len(variables)),
+        sharex=True,
+        layout="constrained",
     )
     for ax, variable in zip(axs, variables):
-        ax.plot(solution_ads["time"], solution_ads[variable], linewidth=0.7, label="With DON adsorption")
+        ax.plot(
+            solution_ads["time"],
+            solution_ads[variable],
+            linewidth=0.7,
+            label="With DON adsorption",
+        )
         if variable in solution_no_ads:
             ax.plot(
                 solution_no_ads["time"],
@@ -101,7 +122,11 @@ def plot_mass_fluxes(mass_fluxes: pd.DataFrame) -> None:
         "u_din_flux",
     ]
     fig, axs = plt.subplots(
-        len(variables), 1, figsize=(10, 2.2 * len(variables)), sharex=True, layout="constrained"
+        len(variables),
+        1,
+        figsize=(10, 2.2 * len(variables)),
+        sharex=True,
+        layout="constrained",
     )
     for ax, variable in zip(axs, variables):
         ax.plot(mass_fluxes["time"], mass_fluxes[variable], linewidth=0.7)
@@ -130,18 +155,68 @@ def main() -> None:
     progress = not args.no_progress
     OUTPUT_DIR.mkdir(exist_ok=True)
 
-    hydrology_params = HydrologyParameters()
-    hydrology_initial_states = HydrologyStates(s_sn=0.01, s_s=0.03, s_gwa=0.2, s_gwp=0.5)
+    hydrology_params = HydrologyParameters(
+        t_0=0.0,
+        m_sn=0.002,
+        k_sn=1.157e-7,
+        c_e=0.8,
+        s_max=0.05,
+        m_s=1e-5,
+        beta_s=2.0,
+        k_sgw=1e-7,
+        k_gwpc=1e-7,
+        k_gwap=1e-6,
+        k_gwac=1e-6,
+        beta_gwac=2.0,
+        s_gwa_max=1.0,
+        s_ref_td=0.5,
+        k_td=1e-5,
+        gamma_x=-0.34,
+        gamma_i=0.32,
+        gamma_p=336.0,
+        pet_albedo=0.23,
+        pet_emissivity=0.98,
+        n_gu=2.0,
+        a_gu_seconds=2 * 60 * 60,
+        area_km2=100.0,
+    )
+    hydrology_initial_states = HydrologyStates(
+        s_sn=0.01,
+        s_s=0.03,
+        s_gwa=0.2,
+        s_gwp=0.5,
+    )
     hydrology = Hydrology(
         output_dir=HYDROLOGY_OUTPUT_DIR,
         artifact_names=HYDROLOGY_ARTIFACTS,
         params=hydrology_params,
         initial_states=hydrology_initial_states,
+        forcing_path=HYDROLOGY_FORCING_PARQUET,
     )
     hydrology.solve(force=args.force_hydrology, progress=progress)
     hydrology.export()
 
-    nitrogen_params = NitrogenParameters()
+    nitrogen_params = NitrogenParameters(
+        s_wp=20.0,
+        s_max=147.3,
+        smf_sat=0.8,
+        beta_sm=1.0,
+        rel_saturation_low=0.2,
+        rel_saturation_high=0.9,
+        rel_sat_limit_exp=0.7,
+        beta_exp=2.5,
+        v_degrad_son=1e-5,
+        v_dissol_son=1e-5,
+        v_dissol_fon=1e-3,
+        v_min_fon=1e-3,
+        v_denit=5e-2,
+        k_denit=1.5,
+        uptake_demand=10.0,
+        delta_time_solver=1.0 / 24.0,
+        freundlich_exponent=1.0,
+        freundlich_constant=100.0,
+        soil_bulk_density=1.3,
+    )
     nitrogen_initial_states = NitrogenStates(
         m_don=500.0,
         m_din=2500.0,
@@ -177,8 +252,12 @@ def main() -> None:
     print("Nitrogen simulation demo")
     print(f"Hydrology outputs: {hydrology.source}")
     print(f"Forcing rows: {len(nitrogen.df_forcings)}")
-    print(f"Final DIN concentration: {nitrogen.solution_ads['c_din'].iloc[-1]:.3f} mg N/L")
-    print(f"Final DON concentration: {nitrogen.solution_ads['c_don'].iloc[-1]:.3f} mg N/L")
+    print(
+        f"Final DIN concentration: {nitrogen.solution_ads['c_din'].iloc[-1]:.3f} mg N/L"
+    )
+    print(
+        f"Final DON concentration: {nitrogen.solution_ads['c_don'].iloc[-1]:.3f} mg N/L"
+    )
     print(f"Saved plots to {OUTPUT_DIR}")
 
 

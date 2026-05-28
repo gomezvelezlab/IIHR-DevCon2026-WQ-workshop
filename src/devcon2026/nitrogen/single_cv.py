@@ -304,6 +304,9 @@ class NitrogenModel_SingleCV:
             Denitrification rate (kg N/km2/d)
         """
 
+        if s <= 0.0:
+            return 0.0
+
         c_din = m_din / s # Inorganic N concentration (mg/L)
 
         # Environmental factors (HYPE: tmpfcn, smfcn, concfcn)
@@ -1000,11 +1003,27 @@ class NitrogenModel_SingleCV:
         df_sln['q_total_in'] = np.sum(q_in, axis=1) # Total mass of water in inflow (mm/d)
         df_sln['q_total_out'] = np.sum(q_out, axis=1) # Total mass of water in outflow (mm/d)
 
-        c_din = df_sln['m_din'] / df_sln['s'] # DIN concentration in outflow (mg/L)
-        c_don = df_sln['m_don'] / df_sln['s']  # DON concentration in outflow (mg/L)
+        c_din = pd.Series(
+            np.divide(
+                df_sln['m_din'],
+                df_sln['s'],
+                out=np.zeros(len(df_sln), dtype=float),
+                where=df_sln['s'].to_numpy() > 0.0,
+            ),
+            index=df_sln.index,
+        ) # DIN concentration in outflow (mg/L)
+        c_don = pd.Series(
+            np.divide(
+                df_sln['m_don'],
+                df_sln['s'],
+                out=np.zeros(len(df_sln), dtype=float),
+                where=df_sln['s'].to_numpy() > 0.0,
+            ),
+            index=df_sln.index,
+        )  # DON concentration in outflow (mg/L)
         dry = df_sln['s'] < 0.01*self.params['s_max'] # Define dry conditions as soil moisture less than 1% of maximum soil storage
-        c_din[dry] = 0.0
-        c_don[dry] = 0.0
+        c_din.loc[dry] = 0.0
+        c_don.loc[dry] = 0.0
         df_sln['c_din'] = c_din
         df_sln['c_don'] = c_don
 

@@ -15,6 +15,13 @@ _FORCING_BASE_CACHE: dict[str, pd.DataFrame] = {}
 _OBS_BASE_CACHE: dict[str, pd.DataFrame] = {}
 
 
+def _read_forcing_table(path: str | Path) -> pd.DataFrame:
+    forcing_path = Path(path)
+    if forcing_path.suffix.lower() == ".parquet":
+        return pd.read_parquet(forcing_path)
+    return pd.read_csv(forcing_path, parse_dates=["time"])
+
+
 def load_parameters(path: str | Path) -> HydrologyParameters:
     with open(path, "rb") as fp:
         parsed = tomli.load(fp)
@@ -34,7 +41,7 @@ def load_forcing_data(
 ) -> pd.DataFrame:
     cache_key = str(path)
     if cache_key not in _FORCING_BASE_CACHE:
-        base = pd.read_csv(path, parse_dates=["time"])
+        base = _read_forcing_table(path)
         base["time"] = pd.to_datetime(base["time"], utc=True)
         _FORCING_BASE_CACHE[cache_key] = base
     forcing_df = _FORCING_BASE_CACHE[cache_key].copy()

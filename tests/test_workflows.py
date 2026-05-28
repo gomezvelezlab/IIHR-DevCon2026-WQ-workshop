@@ -1,10 +1,48 @@
+from pathlib import Path
+
 import pandas as pd
 
 from devcon2026.hydrology import Hydrology
 from devcon2026.hydrology import HydrologyArtifactNames
+from devcon2026.hydrology import HydrologyParameters
+from devcon2026.hydrology import load_forcing_data
 from devcon2026.nitrogen import Nitrogen
 from devcon2026.nitrogen import NitrogenParameters
 from devcon2026.nitrogen import NitrogenStates
+
+
+def write_raw_hydrology_forcing(path: Path) -> None:
+    pd.DataFrame(
+        {
+            "time": pd.date_range("2020-01-01", periods=3, freq="h"),
+            "spatial_ref": [0, 0, 0],
+            "APCP_surface": [0.1, 0.0, 0.2],
+            "DLWRF_surface": [300.0, 301.0, 302.0],
+            "DSWRF_surface": [0.0, 100.0, 0.0],
+            "PRES_surface": [99000.0, 99050.0, 99100.0],
+            "SPFH_2maboveground": [0.003, 0.0031, 0.0032],
+            "TMP_2maboveground": [273.15, 274.15, 275.15],
+            "UGRD_10maboveground": [1.0, 1.5, 2.0],
+            "VGRD_10maboveground": [0.0, 0.0, 0.0],
+        }
+    ).to_parquet(path, engine="fastparquet", index=False)
+
+
+def test_load_forcing_data_reads_parquet(tmp_path) -> None:
+    forcing_path = tmp_path / "hydrology_forcings.parquet"
+    write_raw_hydrology_forcing(forcing_path)
+
+    forcing = load_forcing_data(
+        forcing_path,
+        start_time="2020-01-01T01:00:00",
+        end_time="2020-01-01T03:00:00",
+        params=HydrologyParameters(),
+    )
+
+    assert len(forcing) == 2
+    assert forcing["time"].iloc[0] == pd.Timestamp("2020-01-01T01:00:00Z")
+    assert forcing["precipitation_mm"].tolist() == [0.0, 0.2]
+    assert "ref_et_mm_hr" in forcing
 
 
 def test_hydrology_facade_solves_exports_and_loads(tmp_path) -> None:
@@ -35,6 +73,23 @@ def test_hydrology_facade_solves_exports_and_loads(tmp_path) -> None:
     cached.solve(progress=False)
 
     assert cached.source == "loaded from existing CSVs"
+
+
+def test_hydrology_facade_loads_parquet_forcing(tmp_path) -> None:
+    forcing_path = tmp_path / "hydrology_forcings.parquet"
+    output_dir = tmp_path / "hydrology"
+    write_raw_hydrology_forcing(forcing_path)
+
+    hydrology = Hydrology(output_dir=output_dir, forcing_path=forcing_path)
+    hydrology.solve(progress=False)
+    hydrology.export()
+    states, fluxes, forcing = hydrology.load_outputs()
+
+    assert hydrology.source == f"generated from {forcing_path}"
+    assert len(states) == 3
+    assert len(fluxes) == 3
+    assert len(forcing) == 3
+    assert "ref_et_mm_hr" in forcing
 
 
 def test_nitrogen_facade_loads_hydrology_solves_and_exports(tmp_path) -> None:

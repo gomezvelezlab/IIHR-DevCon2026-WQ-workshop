@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from .export import HydrologyArtifactNames, export_nitrogen_hydrology_inputs
+from .io import load_forcing_data
 from .simulation import simulate
 from .types import HydrologyParameters, HydrologySimulationResult, HydrologyStates
 
@@ -45,6 +46,9 @@ class Hydrology:
         default_factory=lambda: HydrologyStates(s_sn=0.01, s_s=0.03, s_gwa=0.2, s_gwp=0.5)
     )
     forcing_df: pd.DataFrame | None = None
+    forcing_path: Path | None = None
+    forcing_start: str | pd.Timestamp | None = None
+    forcing_end: str | pd.Timestamp | None = None
     start: str | pd.Timestamp = "2010-01-01"
     hours: int = 24 * 120
     result: HydrologySimulationResult | None = None
@@ -58,6 +62,9 @@ class Hydrology:
         params: HydrologyParameters | None = None,
         initial_states: HydrologyStates | None = None,
         forcing_df: pd.DataFrame | None = None,
+        forcing_path: str | Path | None = None,
+        forcing_start: str | pd.Timestamp | None = None,
+        forcing_end: str | pd.Timestamp | None = None,
         start: str | pd.Timestamp | None = None,
         hours: int | None = None,
     ) -> Hydrology:
@@ -72,6 +79,12 @@ class Hydrology:
             self.initial_states = initial_states
         if forcing_df is not None:
             self.forcing_df = forcing_df
+        if forcing_path is not None:
+            self.forcing_path = Path(forcing_path)
+        if forcing_start is not None:
+            self.forcing_start = forcing_start
+        if forcing_end is not None:
+            self.forcing_end = forcing_end
         if start is not None:
             self.start = start
         if hours is not None:
@@ -96,9 +109,23 @@ class Hydrology:
             self.source = "loaded from existing CSVs"
             return self
 
-        generated_synthetic = self.forcing_df is None
-        if generated_synthetic:
+        generated_synthetic = False
+        loaded_from_path = False
+        if self.forcing_df is None and self.forcing_path is not None:
+            forcing_start = (
+                str(self.forcing_start) if self.forcing_start is not None else None
+            )
+            forcing_end = str(self.forcing_end) if self.forcing_end is not None else None
+            self.forcing_df = load_forcing_data(
+                self.forcing_path,
+                start_time=forcing_start,
+                end_time=forcing_end,
+                params=self.params,
+            )
+            loaded_from_path = True
+        if self.forcing_df is None:
             self.forcing_df = synthetic_hydrology_forcing(start=self.start, hours=self.hours)
+            generated_synthetic = True
         forcing_df = self.forcing_df
         if forcing_df is None:
             raise RuntimeError("Hydrology forcing data was not configured.")
@@ -109,11 +136,12 @@ class Hydrology:
             progress=progress,
             progress_desc="hydrology",
         )
-        self.source = (
-            "generated from synthetic forcing"
-            if generated_synthetic
-            else "generated from configured forcing"
-        )
+        if generated_synthetic:
+            self.source = "generated from synthetic forcing"
+        elif loaded_from_path:
+            self.source = f"generated from {self.forcing_path}"
+        else:
+            self.source = "generated from configured forcing"
         return self
 
     def export(self) -> dict[str, Path]:
