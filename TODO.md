@@ -10,11 +10,11 @@
   `Nitrogen3Layers` facade can compose three single-layer nitrogen components,
   with groundwater layers carrying only dissolved pools and receiving upstream
   advective mass fluxes.
-- Refine the hydrology tile drainage component. Tile fluxes are currently near
-  zero, but for this watershed they should likely dominate fast drainage. Revisit
-  the tile-drain process representation, thresholds, storage connections, and
-  parameterization before using hydrology outputs as final nitrogen transport
-  drivers.
+- Refine and calibrate the hydrology tile drainage component. An initial
+  water-table formulation now compares against the legacy relative-storage
+  formulation and a no-tile scenario, but tile depth, water-table reference
+  depth, specific yield, and drainage coefficient still need calibration before
+  using hydrology outputs as final nitrogen transport drivers.
 
 ## Ask About Nitrogen Model
 

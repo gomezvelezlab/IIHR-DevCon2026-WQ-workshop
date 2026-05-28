@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from typing import Any
+from typing import Literal
 
 import pandas as pd
 
 from devcon2026.types import ArrayConvertible
 from .constants import SECONDS_PER_HOUR
+
+TileDrainageMethod = Literal["relative_storage", "water_table", "none"]
 
 
 @dataclass
@@ -148,7 +152,23 @@ class HydrologyParameters:
     )
     s_ref_td: float = field(
         default=0.5,
-        metadata={"unit": "1", "description": "relative tile drainage activation threshold"},
+        metadata={"unit": "1", "description": "legacy relative tile drainage activation threshold"},
+    )
+    tile_drainage_method: TileDrainageMethod = field(
+        default="water_table",
+        metadata={"unit": "method", "description": "tile drainage formulation"},
+    )
+    water_table_reference_depth: float = field(
+        default=1.8,
+        metadata={"unit": "m", "description": "water table depth when active groundwater storage is zero"},
+    )
+    tile_depth: float = field(
+        default=1.0,
+        metadata={"unit": "m", "description": "tile drain depth below land surface"},
+    )
+    specific_yield: float = field(
+        default=0.1,
+        metadata={"unit": "1", "description": "drainable porosity converting active groundwater storage to water-table rise"},
     )
     k_td: float = field(
         default=1e-5,
@@ -191,7 +211,7 @@ class HydrologyParameters:
         metadata={"unit": "km2", "description": "drainage area"},
     )
 
-    def with_updates(self, updates: dict[str, float]) -> "HydrologyParameters":
+    def with_updates(self, updates: dict[str, Any]) -> "HydrologyParameters":
         """Return a copy with selected parameter updates."""
         return replace(self, **updates)
 

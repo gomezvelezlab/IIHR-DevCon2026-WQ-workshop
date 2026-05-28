@@ -2,6 +2,7 @@ from dataclasses import fields
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from devcon2026.hydrology import HydrologyDerivatives
 from devcon2026.hydrology import HydrologyFluxes
@@ -14,6 +15,8 @@ from devcon2026.hydrology.export import convert_states_to_nitrogen_units
 from devcon2026.hydrology.export import export_nitrogen_hydrology_inputs
 from devcon2026.hydrology.export import read_table
 from devcon2026.hydrology.physics import compute_fluxes
+from devcon2026.hydrology.physics import tile_drainage_flux
+from devcon2026.hydrology.physics import water_table_depth
 
 
 def test_compute_fluxes_has_nitrogen_demo_columns() -> None:
@@ -35,6 +38,32 @@ def test_compute_fluxes_has_nitrogen_demo_columns() -> None:
         "q_gwap",
         "q_gwpc",
     }
+
+
+def test_tile_drainage_modes() -> None:
+    water_table_params = HydrologyParameters(
+        tile_drainage_method="water_table",
+        water_table_reference_depth=1.8,
+        tile_depth=1.0,
+        specific_yield=0.1,
+        k_td=1e-5,
+    )
+    assert water_table_depth(0.07, water_table_params) == pytest.approx(1.1)
+    assert tile_drainage_flux(0.07, water_table_params) == 0.0
+    assert water_table_depth(0.09, water_table_params) == pytest.approx(0.9)
+    assert tile_drainage_flux(0.09, water_table_params) == pytest.approx(1e-6)
+
+    legacy_params = HydrologyParameters(
+        tile_drainage_method="relative_storage",
+        s_gwa_max=1.0,
+        s_ref_td=0.5,
+        k_td=1e-5,
+    )
+    assert tile_drainage_flux(0.4, legacy_params) == 0.0
+    assert tile_drainage_flux(0.6, legacy_params) == pytest.approx(1e-6)
+
+    no_tile_params = HydrologyParameters(tile_drainage_method="none", k_td=1e-5)
+    assert tile_drainage_flux(10.0, no_tile_params) == 0.0
 
 
 def test_prefixed_hydrology_types_are_public_api() -> None:

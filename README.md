@@ -26,6 +26,7 @@ uv run pytest
 ```bash
 uv run python demo1layer.py
 uv run python demo3layer.py
+uv run python demo_hydrology_tiles.py
 ```
 
 Use `--force-hydrology` to rerun hydrology even when exported Parquet artifacts
@@ -34,6 +35,8 @@ already exist. Use `--no-progress` for quiet batch runs.
 `demo1layer.py` follows the dataframe workflow from the original nitrogen
 notebook with a single soil control volume. `demo3layer.py` routes dissolved
 nitrogen through soil, active groundwater, and passive groundwater compartments.
+`demo_hydrology_tiles.py` compares the legacy tile-drainage formulation against
+the water-table formulation and a no-tile scenario.
 Hydrology and nitrogen handoff artifacts are Parquet files in
 `demo_outputs/example_hydrology_model/`. Plots are written to `demo_outputs/`.
 

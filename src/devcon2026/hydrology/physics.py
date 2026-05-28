@@ -147,6 +147,26 @@ def compute_extra_vars(
     return df
 
 
+def water_table_depth(s_gwa: float, params: HydrologyParameters) -> float:
+    """Estimate water-table depth below land surface from active GW storage."""
+    if params.specific_yield <= 0.0:
+        raise ValueError("specific_yield must be positive.")
+    return params.water_table_reference_depth - max(0.0, s_gwa) / params.specific_yield
+
+
+def tile_drainage_flux(s_gwa: float, params: HydrologyParameters) -> float:
+    """Compute active groundwater flow to tile drains [m/s]."""
+    s_gwa = max(0.0, s_gwa)
+    if params.tile_drainage_method == "none":
+        return 0.0
+    if params.tile_drainage_method == "relative_storage":
+        return params.k_td * max(0.0, s_gwa - params.s_ref_td * params.s_gwa_max)
+    if params.tile_drainage_method == "water_table":
+        head_above_tile = params.tile_depth - water_table_depth(s_gwa, params)
+        return params.k_td * max(0.0, head_above_tile)
+    raise ValueError(f"Unknown tile drainage method: {params.tile_drainage_method}")
+
+
 def compute_fluxes(
     t: float,
     states: HydrologyStates,
@@ -180,10 +200,7 @@ def compute_fluxes(
     q_sgwa = (1.0 - gamma_s) * q_inf + q_sgwv  # [m s-1]
 
     q_gwac = params.k_gwac * (s_gwa / params.s_gwa_max) ** params.beta_gwac  # [m s-1]
-    # Relative-threshold form:
-    # q_gwatd = k_td * max(0, s_gwa / s_gwa_max - s_ref_td) * s_gwa_max
-    # Equivalent implementation with fewer operations:
-    q_gwatd = params.k_td * max(0.0, s_gwa - params.s_ref_td * params.s_gwa_max)  # [m s-1]
+    q_gwatd = tile_drainage_flux(s_gwa, params)  # [m s-1]
     q_gwap = params.k_gwap * (s_gwa / params.s_gwa_max)  # [m s-1]
     q_gwpc = params.k_gwpc * s_gwp  # [m s-1]
 

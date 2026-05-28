@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -26,7 +27,7 @@ def load_parameters(path: str | Path) -> HydrologyParameters:
     with open(path, "rb") as fp:
         parsed = tomli.load(fp)
 
-    flattened: dict[str, float] = {}
+    flattened: dict[str, Any] = {}
     for _, values in parsed.items():
         flattened.update(values)
 

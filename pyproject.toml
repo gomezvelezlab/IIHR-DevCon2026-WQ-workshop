@@ -25,7 +25,7 @@ build-backend = "hatchling.build"
 testpaths = ["tests"]
 
 [tool.mypy]
-files = ["demo1layer.py", "demo3layer.py", "src/devcon2026", "tests"]
+files = ["demo1layer.py", "demo3layer.py", "demo_hydrology_tiles.py", "src/devcon2026", "tests"]
 
 [dependency-groups]
 dev = [
