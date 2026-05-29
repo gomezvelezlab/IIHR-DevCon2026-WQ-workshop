@@ -259,6 +259,7 @@ def run_nitrogen_scenario(
 
 def plot_hydrology_scenarios(
     hydrology_outputs: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]],
+    utils_params: dict,
 ) -> None:
     fig, axs = plt.subplots(4, 1, figsize=(10, 12), sharex=True, layout="constrained")
     results_start = pd.Timestamp(RESULTS_START, tz="UTC")
@@ -310,12 +311,13 @@ def plot_hydrology_scenarios(
     # axs[3].set_ylabel("Air temp (C)")
     for ax in axs:
         ax.legend()
-    fig.savefig(HYDROLOGY_FORCINGS_PLOT, dpi=150)
+    fig.savefig(utils_params["HYDROLOGY_FORCINGS_PLOT"], dpi=150)
     plt.close(fig)
 
 
 def plot_forcing_scenarios(
     hydrology_outputs: dict[str, tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]],
+    utils_params: dict,
 ) -> None:
     fig, axs = plt.subplots(6, 1, figsize=(11, 13), sharex=False, layout="constrained")
     _, first_fluxes, first_meteorology = next(iter(hydrology_outputs.values()))
@@ -339,7 +341,7 @@ def plot_forcing_scenarios(
         }
     )
 
-    nitrogen_daily = read_table(NITROGEN_FORCING_PARQUET, parse_dates=["date"])
+    nitrogen_daily = read_table(utils_params["NITROGEN_FORCING_PARQUET"], parse_dates=["date"])
     nitrogen_daily["date"] = pd.to_datetime(nitrogen_daily["date"])
     nitrogen_daily = apply_time_window(
         nitrogen_daily.rename(columns={"date": "time"}),
@@ -365,7 +367,7 @@ def plot_forcing_scenarios(
         ax.plot(nitrogen_daily["time"], nitrogen_daily[column], linewidth=0.7)
         ax.set_ylabel(label)
 
-    fig.savefig(FORCINGS_PLOT, dpi=150)
+    fig.savefig(utils_params["FORCINGS_PLOT"], dpi=150)
     plt.close(fig)
 
 
@@ -374,6 +376,7 @@ def plot_concentration_scenarios(
     *,
     species: str,
     output_path: Path,
+    utils_params: dict,
 ) -> None:
     variables = [
         (f"soil_c_{species}", f"Soil {species.upper()} (mg/L)"),
@@ -389,7 +392,7 @@ def plot_concentration_scenarios(
         layout="constrained",
     )
     for scenario_name, solution in solutions.items():
-        plotted = apply_time_window(solution, start=RESULTS_START, end=SIMULATION_END)
+        plotted = apply_time_window(solution, start=utils_params["RESULTS_START"], end=utils_params["SIMULATION_END"])
         for ax, (column, label) in zip(axs, variables):
             ax.plot(
                 plotted["time"], plotted[column], linewidth=0.7, label=scenario_name
@@ -408,6 +411,7 @@ def plot_mass_scenarios(
     *,
     species: str,
     output_path: Path,
+    utils_params: dict,
 ) -> None:
     variables = [
         (f"soil_m_{species}", f"Soil {species.upper()} (kg N/km2)"),
@@ -422,7 +426,7 @@ def plot_mass_scenarios(
         layout="constrained",
     )
     for scenario_name, solution in solutions.items():
-        plotted = apply_time_window(solution, start=RESULTS_START, end=SIMULATION_END)
+        plotted = apply_time_window(solution, start=utils_params["RESULTS_START"], end=utils_params["SIMULATION_END"])
         for ax, (column, label) in zip(axs, variables):
             ax.plot(
                 plotted["time"], plotted[column], linewidth=0.7, label=scenario_name
