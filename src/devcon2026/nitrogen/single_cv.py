@@ -287,6 +287,8 @@ class NitrogenSoilLayer:
         m_don_eq = self.get_adsorption_of_don_inv(m_don_ads_previous, s, params) # Mass of dissolved DON at equilibrium (kg N/km2)
         delta_m_don = m_don_current - m_don_eq # Change in dissolved DON mass to reach equilibrium (kg N/km2)
 
+        # delta_m_don = delta_m_don if s > 0 else 0.0 # If soil water is zero, then there is no dissolved DON and no adjustment is needed, so set delta_m_don to zero to avoid NaN values.    
+
         m_don_new = m_don_current - delta_m_don # Adjusted mass of dissolved DON after equilibrium adjustment (kg N/km2)
         m_don_ads_new = m_don_ads_previous + delta_m_don # Adjusted mass of adsorbed DON after equilibrium adjustment (kg N/km2)
 
@@ -725,9 +727,6 @@ class NitrogenSoilLayer:
         M[2] = max(M[2], 0.0) # Ensure non-negative mass for SON
         M[3] = max(M[3], 0.0) # Ensure non-negative mass for FON
 
-        M[0] = M[0] if s > 0 else 0.0 # If water mass in storage is zero, then set dissolved mass to zero to avoid NaN concentrations
-        M[1] = M[1] if s > 0 else 0.0 # If water mass in storage is zero, then set dissolved mass to zero to avoid NaN
-        
         c_don = _dissolved_concentration(M[0], s, self.params)
         c_din = _dissolved_concentration(M[1], s, self.params)
 
@@ -1027,6 +1026,9 @@ class NitrogenSoilLayer:
                 y[0] = m_don_new
                 y_ads = m_don_ads_new
 
+            y[0] = y[0] if s[i] > 0 else 0.0 # If water mass in storage is zero, then set dissolved mass to zero to avoid NaN concentrations
+            y[1] = y[1] if s[i] > 0 else 0.0 # If water mass in storage is zero, then set dissolved mass to zero to avoid NaN
+        
             # Save the state variables and the adsorbed DON mass at the current time step
             states_history.append(np.append(np.append(y, y_ads), delta_m_don))
 
