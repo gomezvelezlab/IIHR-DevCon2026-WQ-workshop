@@ -107,7 +107,7 @@ HYDROLOGY_SCENARIOS = {
 
 NITROGEN_PARAMS = NitrogenParameters(
     s_wp=20.0,  # wilting point soil water storage [mm]
-    s_max=1 * HYDROLOGY_PARAMS.s_max,  # maximum soil water storage [mm]
+    s_max=1e-3 * HYDROLOGY_PARAMS.s_max,  # maximum soil water storage [mm]
     min_dissolved_storage=1.0,  # minimum storage for dissolved concentrations [mm]
     smf_sat=0.8,  # saturated moisture factor [1]
     beta_sm=1.0,  # moisture factor exponent [1]

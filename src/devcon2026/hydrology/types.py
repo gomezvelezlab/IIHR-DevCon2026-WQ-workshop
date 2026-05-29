@@ -211,6 +211,11 @@ class HydrologyParameters:
         metadata={"unit": "km2", "description": "drainage area"},
     )
 
+    min_storage: float = field(
+        default=0.001,
+        metadata={"unit": "m", "description": "minimum storage"},
+    )
+
     def with_updates(self, updates: dict[str, Any]) -> "HydrologyParameters":
         """Return a copy with selected parameter updates."""
         return replace(self, **updates)

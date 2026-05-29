@@ -68,7 +68,8 @@ def simulate(
         if not sol.success:
             raise RuntimeError(f"Solver failed at {current_time}: {sol.message}")
 
-        y = np.maximum(0.0, sol.y[:, -1]).astype(np.float64)
+        y = np.maximum(params.min_storage, sol.y[:, -1]).astype(np.float64)
+
         current_state = HydrologyStates.from_array(y)
         states_history.append(current_state)
         flux_history.append(compute_fluxes(t_end, current_state, params, forcings))
