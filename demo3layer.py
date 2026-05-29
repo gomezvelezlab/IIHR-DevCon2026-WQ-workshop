@@ -32,11 +32,18 @@ from devcon2026.hydrology.export import (
 from devcon2026.nitrogen import Nitrogen, NitrogenParameters, NitrogenThreeCompartment
 from devcon2026.tables import read_table, write_table
 
-OUTPUT_DIR = Path("demo_outputs")
+scenario = "spring" # "fallspring" # 
+
+if scenario == "fallspring":
+    OUTPUT_DIR = Path("demo_outputs_fallspring")
+    NITROGEN_FORCING_PARQUET = Path("data/nitrogen_forcing_fallspring.parquet")
+elif scenario == "spring":
+    OUTPUT_DIR = Path("demo_outputs_spring")
+    NITROGEN_FORCING_PARQUET = Path("data/nitrogen_forcing_spring.parquet")
+
 HYDROLOGY_OUTPUT_DIR = OUTPUT_DIR / "hydrology_3layer"
 SCENARIO_OUTPUT_DIR = OUTPUT_DIR / "nitrogen_3layer_scenarios"
 HYDROLOGY_FORCING_PARQUET = Path("data/hydrology_forcings.parquet")
-NITROGEN_FORCING_PARQUET = Path("data/nitrogen_forcings.parquet")
 HYDROLOGY_FORCINGS_PLOT = OUTPUT_DIR / "hydrology_3layer_variants.png"
 FORCINGS_PLOT = OUTPUT_DIR / "hydrology_nitrogen_forcings.png"
 NITROGEN_DIN_PLOT = OUTPUT_DIR / "nitrogen_3layer_din_scenarios.png"

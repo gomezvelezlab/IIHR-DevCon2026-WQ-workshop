@@ -6,6 +6,8 @@ dist/
 wheels/
 *.egg-info
 demo_outputs/
+demo_outputs_fallspring/
+demo_outputs_spring/
 notebooks/wq-modeling-iihr/
 
 # Local/raw forcing inputs. Keep curated Parquet forcings in git.
