@@ -725,6 +725,9 @@ class NitrogenSoilLayer:
         M[2] = max(M[2], 0.0) # Ensure non-negative mass for SON
         M[3] = max(M[3], 0.0) # Ensure non-negative mass for FON
 
+        M[0] = M[0] if s > 0 else 0.0 # If water mass in storage is zero, then set dissolved mass to zero to avoid NaN concentrations
+        M[1] = M[1] if s > 0 else 0.0 # If water mass in storage is zero, then set dissolved mass to zero to avoid NaN
+        
         c_don = _dissolved_concentration(M[0], s, self.params)
         c_din = _dissolved_concentration(M[1], s, self.params)
 
