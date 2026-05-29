@@ -47,7 +47,7 @@ NITROGEN_DON_MASS_PLOT = OUTPUT_DIR / "nitrogen_3layer_don_mass_scenarios.png"
 HYDROLOGY_SPIN_START = "2007-01-01"
 NITROGEN_SPIN_START = "2008-01-01"
 RESULTS_START = "2009-01-01"
-SIMULATION_END = "2018-01-01"
+SIMULATION_END = "2012-01-01"
 FORCE_HYDROLOGY = False
 FORCE_NITROGEN = False
 SHOW_PROGRESS = True
@@ -111,7 +111,7 @@ NITROGEN_PARAMS = NitrogenParameters(
     v_degrad_son=1e-5,  # maximum degradation rate of slow organic nitrogen [1/day]
     v_dissol_son=1e-5,  # maximum dissolution rate of slow organic nitrogen [1/day]
     v_dissol_fon=1e-3,  # maximum dissolution rate of fast organic nitrogen [1/day]
-    v_min_fon=1e-3,  # maximum mineralization rate of fast organic nitrogen [1/day]
+    v_min_fon=1e-4,  # maximum mineralization rate of fast organic nitrogen [1/day]
     v_denit=5e-2,  # maximum denitrification rate [1/day]
     k_denit=1.5,  # denitrification half-saturation concentration [mg/L]
     uptake_demand=50.0,  # plant inorganic nitrogen uptake demand [kg N/km2/day]
@@ -131,6 +131,11 @@ NITROGEN_PARAMS = NitrogenParameters(
     manure_don_fraction=0.0,
     manure_son_fraction=0.0,
     manure_fon_fraction=1.0,
+)
+NITROGEN_SOIL_PARAMS = NITROGEN_PARAMS
+NITROGEN_GWA_PARAMS = NITROGEN_PARAMS
+NITROGEN_GWP_PARAMS = NITROGEN_PARAMS.with_updates(
+    {"uptake_demand": 0.0, "v_denit": NITROGEN_PARAMS.v_denit / 10.0}
 )
 
 NITROGEN_SCENARIOS = {
@@ -219,7 +224,11 @@ def run_nitrogen_scenario(
 
     print(f"Running nitrogen scenario: {scenario_name}")
 
-    model = NitrogenThreeCompartment(NITROGEN_PARAMS)
+    model = NitrogenThreeCompartment(
+        soil_params=NITROGEN_SOIL_PARAMS,
+        gwa_params=NITROGEN_GWA_PARAMS,
+        gwp_params=NITROGEN_GWP_PARAMS,
+    )
     df_forcings = model.from_hydrology_outputs(states, fluxes, meteorology)
     source_helper = Nitrogen(params=model.params)
     df_forcings = source_helper.add_nitrogen_source_forcings(
@@ -319,9 +328,7 @@ def plot_forcing_scenarios(
             .resample("D")
             .sum(),
             "pet": meteorology.set_index("time")["ref_et_mm_hr"].resample("D").sum(),
-            "aet": (fluxes_mm_day.set_index("time")["e_a"] / 24.0)
-            .resample("D")
-            .sum(),
+            "aet": (fluxes_mm_day.set_index("time")["e_a"] / 24.0).resample("D").sum(),
         }
     )
 
@@ -381,6 +388,8 @@ def plot_concentration_scenarios(
                 plotted["time"], plotted[column], linewidth=0.7, label=scenario_name
             )
             ax.set_ylabel(label)
+            if column == f"soil_c_{species}":
+                ax.set_ylim(0.0, 300.0)
     for ax in axs:
         ax.legend(loc="upper right")
     fig.savefig(output_path, dpi=150)

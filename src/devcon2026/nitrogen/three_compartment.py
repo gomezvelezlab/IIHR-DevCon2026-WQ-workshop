@@ -25,18 +25,40 @@ def _concentration(mass: float, storage: float, min_storage: float = 0.0) -> flo
 class NitrogenThreeCompartment:
     """Route nitrogen through soil, active GW, and passive GW compartments.
 
-    The soil compartment uses the full soil nitrogen model. Active and passive
-    groundwater compartments carry dissolved DON/DIN only; solid pools,
-    adsorption, plant uptake, and external land-surface sources are disabled
-    there by construction.
+    Each hydrologic compartment uses the single-control-volume nitrogen model.
+    Soil and active groundwater include denitrification and plant uptake.
+    Passive groundwater includes denitrification but disables plant uptake.
     """
 
     def __init__(
         self,
         params: NitrogenParameters | Mapping[str, float] | None = None,
+        *,
+        soil_params: NitrogenParameters | Mapping[str, float] | None = None,
+        gwa_params: NitrogenParameters | Mapping[str, float] | None = None,
+        gwp_params: NitrogenParameters | Mapping[str, float] | None = None,
     ) -> None:
-        self.params = coerce_nitrogen_parameters(params)
-        self.soil = NitrogenSoilLayer(self.params)
+        base_params = coerce_nitrogen_parameters(params)
+        self.soil_params = (
+            coerce_nitrogen_parameters(soil_params)
+            if soil_params is not None
+            else base_params
+        )
+        self.gwa_params = (
+            coerce_nitrogen_parameters(gwa_params)
+            if gwa_params is not None
+            else base_params
+        )
+        gwp_base_params = (
+            coerce_nitrogen_parameters(gwp_params)
+            if gwp_params is not None
+            else base_params
+        )
+        self.gwp_params = gwp_base_params.with_updates({"uptake_demand": 0.0})
+        self.params = self.soil_params
+        self.soil = NitrogenSoilLayer(self.soil_params)
+        self.gwa = NitrogenSoilLayer(self.gwa_params)
+        self.gwp = NitrogenSoilLayer(self.gwp_params)
 
     def from_hydrology_outputs(
         self,
@@ -76,10 +98,37 @@ class NitrogenThreeCompartment:
         )
 
     def default_initial_masses(self, df_forcings: pd.DataFrame) -> NDArray[Any]:
-        """Default [soil pools, soil adsorbed DON, GW dissolved pools]."""
+        """Default [soil pools, soil adsorbed DON, GWA pools, GWP pools]."""
         mean_storage = float(df_forcings["s_soil"].mean())
         soil = NitrogenStates.from_mean_storage(mean_storage).to_array()
-        return np.array([*soil, 0.0, 0.0, 0.0, 0.0], dtype=float)
+        groundwater = np.zeros(4, dtype=float)
+        return np.array([*soil, *groundwater, *groundwater], dtype=float)
+
+    def _coerce_initial_masses(self, y0: NDArray[Any]) -> tuple[NDArray[Any], float]:
+        """Return 12 model masses and soil adsorbed DON from old or new layouts."""
+        y0 = y0.astype(float)
+        if len(y0) >= 13:
+            masses = y0[[0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12]].copy()
+            masses[[6, 7, 10, 11]] = 0.0
+            return masses, float(y0[4])
+        if len(y0) == 12:
+            masses = y0.copy()
+            masses[[6, 7, 10, 11]] = 0.0
+            return masses, 0.0
+        if len(y0) == 9:
+            soil = y0[0:4]
+            soil_ads = float(y0[4])
+            gwa = np.array([y0[5], y0[6], 0.0, 0.0], dtype=float)
+            gwp = np.array([y0[7], y0[8], 0.0, 0.0], dtype=float)
+            return np.array([*soil, *gwa, *gwp], dtype=float), soil_ads
+        if len(y0) == 8:
+            soil = y0[0:4]
+            gwa = np.array([y0[4], y0[5], 0.0, 0.0], dtype=float)
+            gwp = np.array([y0[6], y0[7], 0.0, 0.0], dtype=float)
+            return np.array([*soil, *gwa, *gwp], dtype=float), 0.0
+        raise ValueError(
+            "initial_masses must have length 8, 9, 12, or 13 for the three-compartment model."
+        )
 
     def _derivatives(
         self,
@@ -87,7 +136,8 @@ class NitrogenThreeCompartment:
         forcings: dict[str, Any],
     ) -> NDArray[Any]:
         soil_m = np.maximum(y[0:4], 0.0)
-        gwa_don, gwa_din, gwp_don, gwp_din = np.maximum(y[4:8], 0.0)
+        gwa_m = np.maximum(y[4:8], 0.0)
+        gwp_m = np.maximum(y[8:12], 0.0)
 
         soil_d = self.soil.get_derivatives_all_species(
             M=soil_m.copy(),
@@ -103,28 +153,48 @@ class NitrogenThreeCompartment:
             source_fon=forcings["source_fon"],
         )
 
-        soil_dry_threshold = self.params.min_dissolved_storage
-        c_soil_don = _concentration(
-            soil_m[0], forcings["s_soil"], soil_dry_threshold
+        soil_dry_threshold = self.soil.params["min_dissolved_storage"]
+        c_soil = np.array(
+            [
+                _concentration(soil_m[0], forcings["s_soil"], soil_dry_threshold),
+                _concentration(soil_m[1], forcings["s_soil"], soil_dry_threshold),
+            ],
+            dtype=float,
         )
-        c_soil_din = _concentration(
-            soil_m[1], forcings["s_soil"], soil_dry_threshold
+        c_gwa = np.array(
+            [
+                _concentration(gwa_m[0], forcings["s_gwa"]),
+                _concentration(gwa_m[1], forcings["s_gwa"]),
+            ],
+            dtype=float,
         )
-        c_gwa_don = _concentration(gwa_don, forcings["s_gwa"])
-        c_gwa_din = _concentration(gwa_din, forcings["s_gwa"])
-        c_gwp_don = _concentration(gwp_don, forcings["s_gwp"])
-        c_gwp_din = _concentration(gwp_din, forcings["s_gwp"])
 
-        soil_to_gwa = forcings["q_sgwa"]
-        gwa_out = forcings["q_gwatd"] + forcings["q_gwac"] + forcings["q_gwap"]
-        gwa_to_gwp = forcings["q_gwap"]
-        gwp_out = forcings["q_gwpc"]
-
-        d_gwa_don = soil_to_gwa * c_soil_don - gwa_out * c_gwa_don
-        d_gwa_din = soil_to_gwa * c_soil_din - gwa_out * c_gwa_din
-        d_gwp_don = gwa_to_gwp * c_gwa_don - gwp_out * c_gwp_don
-        d_gwp_din = gwa_to_gwp * c_gwa_din - gwp_out * c_gwp_din
-        return np.array([*soil_d, d_gwa_don, d_gwa_din, d_gwp_don, d_gwp_din])
+        gwa_d = self.gwa.get_derivatives_all_species(
+            M=gwa_m.copy(),
+            s=forcings["s_gwa"],
+            q_in=np.array([forcings["q_sgwa"]], dtype=float),
+            q_out=np.array(
+                [
+                    forcings["q_gwatd"],
+                    forcings["q_gwac"],
+                    forcings["q_gwap"],
+                ],
+                dtype=float,
+            ),
+            c_don_in=np.array([c_soil[0]], dtype=float),
+            c_din_in=np.array([c_soil[1]], dtype=float),
+            temp=forcings["temp"],
+        )
+        gwp_d = self.gwp.get_derivatives_all_species(
+            M=gwp_m.copy(),
+            s=forcings["s_gwp"],
+            q_in=np.array([forcings["q_gwap"]], dtype=float),
+            q_out=np.array([forcings["q_gwpc"]], dtype=float),
+            c_don_in=np.array([c_gwa[0]], dtype=float),
+            c_din_in=np.array([c_gwa[1]], dtype=float),
+            temp=forcings["temp"],
+        )
+        return np.array([*soil_d, *gwa_d, *gwp_d])
 
     def simulate(
         self,
@@ -143,11 +213,10 @@ class NitrogenThreeCompartment:
             if initial_masses is None
             else initial_masses.astype(float)
         )
-        y = y0[[0, 1, 2, 3, 5, 6, 7, 8]] if len(y0) == 9 else y0[0:8].copy()
-        soil_ads = float(y0[4]) if len(y0) >= 5 else 0.0
+        y, soil_ads = self._coerce_initial_masses(y0)
         delta_m_don = 0.0
 
-        history = [[*y[0:4], soil_ads, delta_m_don, *y[4:8]]]
+        history = [[*y[0:4], soil_ads, delta_m_don, *y[4:12]]]
         iter_time: Iterable[pd.Timestamp] = list(time_index[1:])
         if progress:
             iter_time = tqdm(
@@ -179,7 +248,7 @@ class NitrogenThreeCompartment:
             }
             sol = solve_ivp(  # type: ignore[call-overload]
                 lambda _t, state: self._derivatives(state, forcings),
-                (0.0, self.params.delta_time_solver),
+                (0.0, self.soil_params.delta_time_solver),
                 y,
                 method="LSODA",
             )
@@ -199,7 +268,7 @@ class NitrogenThreeCompartment:
                 )
                 y[0] = m_don_new
                 soil_ads = soil_ads_new
-            history.append([*y[0:4], soil_ads, delta_m_don, *y[4:8]])
+            history.append([*y[0:4], soil_ads, delta_m_don, *y[4:12]])
 
         output = pd.DataFrame(
             history,
@@ -212,8 +281,12 @@ class NitrogenThreeCompartment:
                 "soil_delta_m_don",
                 "gwa_m_don",
                 "gwa_m_din",
+                "gwa_m_son",
+                "gwa_m_fon",
                 "gwp_m_don",
                 "gwp_m_din",
+                "gwp_m_son",
+                "gwp_m_fon",
             ],
         )
         output.insert(0, "time", time_index)
@@ -221,9 +294,9 @@ class NitrogenThreeCompartment:
         output["gwa_s"] = df_forcings["s_gwa"].to_numpy()
         output["gwp_s"] = df_forcings["s_gwp"].to_numpy()
         dry_thresholds = {
-            "soil": self.params.min_dissolved_storage,
-            "gwa": 0.0,
-            "gwp": 0.0,
+            "soil": self.soil.params["min_dissolved_storage"],
+            "gwa": self.gwa.params["min_dissolved_storage"],
+            "gwp": self.gwp.params["min_dissolved_storage"],
         }
         for prefix in ("soil", "gwa", "gwp"):
             storage = output[f"{prefix}_s"]
