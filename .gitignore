@@ -13,6 +13,7 @@ demo_outputs_activity_1_fallspring_adsorption/
 demo_outputs_activity_2a_fallspring_no_adsorption/
 demo_outputs_activity_2b_fallspring_adsorption/
 demo_outputs_activity_3_spring_adsorption/
+notebooks/demo_outputs_activity_1_fallspring_adsorption/
 # Local/raw forcing inputs. Keep curated Parquet forcings in git.
 data/*
 !data/
